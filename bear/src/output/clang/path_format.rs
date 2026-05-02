@@ -14,7 +14,7 @@
 //! file paths. In the current implementation, the `arguments` attribute is not
 //! transformed.
 
-use crate::config::{PathFormat, PathResolver};
+use crate::config::PathResolver;
 use std::io;
 use std::path::{Path, PathBuf, absolute};
 use thiserror::Error;
@@ -27,68 +27,30 @@ pub enum FormatError {
     PathsCannotBeRelative(PathBuf, PathBuf),
 }
 
-/// Trait for formatting paths according to different strategies.
-/// This trait allows for easy mocking in tests and provides a clean abstraction
-/// for path transformation logic.
-#[cfg_attr(test, mockall::automock)]
-pub(super) trait PathFormatter: Send {
-    /// Format a directory path according to the configured strategy.
-    fn format_directory(&self, working_dir: &Path, directory: &Path) -> Result<PathBuf, FormatError>;
+/// Function pointer for resolving a path. Parameters are `(base, path)`.
+pub type ResolveFn = fn(&Path, &Path) -> Result<PathBuf, FormatError>;
 
-    /// Format a file path according to the configured strategy.
-    fn format_file(&self, directory: &Path, file: &Path) -> Result<PathBuf, FormatError>;
-}
-
-/// Implementation of PathFormatter that uses the configuration to determine
-/// how to format paths.
-pub(super) struct ConfigurablePathFormatter {
-    config: PathFormat,
-}
-
-impl ConfigurablePathFormatter {
-    /// Creates a new PathFormatter with the given configuration.
-    ///
-    /// The configuration is expected to be pre-validated by the config loader.
-    pub fn new(config: PathFormat) -> Self {
-        Self { config }
+/// Returns the resolver function for the given strategy.
+pub fn resolver_for(strategy: PathResolver) -> ResolveFn {
+    match strategy {
+        PathResolver::AsIs => resolve_as_is,
+        PathResolver::Canonical => resolve_canonical,
+        PathResolver::Relative => resolve_relative,
+        PathResolver::Absolute => absolute_to,
     }
 }
 
-impl PathFormatter for ConfigurablePathFormatter {
-    fn format_directory(&self, working_dir: &Path, directory: &Path) -> Result<PathBuf, FormatError> {
-        self.config.directory.resolve(working_dir, directory)
-    }
-
-    fn format_file(&self, directory: &Path, file: &Path) -> Result<PathBuf, FormatError> {
-        self.config.file.resolve(directory, file)
-    }
+fn resolve_as_is(_base: &Path, path: &Path) -> Result<PathBuf, FormatError> {
+    Ok(path.to_path_buf())
 }
 
-impl PathResolver {
-    /// Resolves a path according to the resolver strategy.
-    ///
-    /// # Parameters
-    ///
-    /// * `base` - The base directory for relative path calculations
-    /// * `path` - The path to resolve
-    ///
-    /// # Returns
-    ///
-    /// The resolved path according to the strategy
-    pub fn resolve(&self, base: &Path, path: &Path) -> Result<PathBuf, FormatError> {
-        match self {
-            PathResolver::AsIs => Ok(path.to_path_buf()),
-            PathResolver::Canonical => {
-                let result = path.canonicalize()?;
-                Ok(strip_windows_extended_length_prefix(result))
-            }
-            PathResolver::Relative => {
-                let absolute = absolute_to(base, path)?;
-                relative_to(base, &absolute)
-            }
-            PathResolver::Absolute => absolute_to(base, path),
-        }
-    }
+fn resolve_canonical(_base: &Path, path: &Path) -> Result<PathBuf, FormatError> {
+    Ok(strip_windows_extended_length_prefix(path.canonicalize()?))
+}
+
+fn resolve_relative(base: &Path, path: &Path) -> Result<PathBuf, FormatError> {
+    let absolute = absolute_to(base, path)?;
+    relative_to(base, &absolute)
 }
 
 /// Strip the Windows extended-length path prefix (`\\?\`) if present.
@@ -197,11 +159,11 @@ mod tests {
 
     #[test]
     fn test_path_resolver_as_is() {
-        let resolver = PathResolver::AsIs;
+        let resolve = resolver_for(PathResolver::AsIs);
         let base = PathBuf::from("/base");
         let path = PathBuf::from("some/path");
 
-        let result = resolver.resolve(&base, &path).unwrap();
+        let result = resolve(&base, &path).unwrap();
         assert_eq!(result, path);
     }
 
@@ -253,30 +215,6 @@ mod tests {
     }
 
     #[test]
-    fn test_path_formatter_format_directory() {
-        let config = PathFormat { directory: PathResolver::AsIs, file: PathResolver::AsIs };
-        let formatter = ConfigurablePathFormatter::new(config);
-
-        let working_dir = PathBuf::from("/working");
-        let directory = PathBuf::from("/some/dir");
-
-        let result = formatter.format_directory(&working_dir, &directory).unwrap();
-        assert_eq!(result, directory);
-    }
-
-    #[test]
-    fn test_path_formatter_format_file() {
-        let config = PathFormat { directory: PathResolver::AsIs, file: PathResolver::AsIs };
-        let formatter = ConfigurablePathFormatter::new(config);
-
-        let directory = PathBuf::from("/some/dir");
-        let file = PathBuf::from("file.c");
-
-        let result = formatter.format_file(&directory, &file).unwrap();
-        assert_eq!(result, file);
-    }
-
-    #[test]
     fn test_path_resolver_absolute_with_temp_files() {
         let temp_dir = tempdir().unwrap();
         let temp_path = temp_dir.path().canonicalize().unwrap();
@@ -285,11 +223,11 @@ mod tests {
         let file_path = temp_path.join("test.txt");
         fs::write(&file_path, "test content").unwrap();
 
-        let resolver = PathResolver::Absolute;
+        let resolve = resolver_for(PathResolver::Absolute);
         let base = temp_path.clone();
         let relative_file = PathBuf::from("test.txt");
 
-        let result = resolver.resolve(&base, &relative_file).unwrap();
+        let result = resolve(&base, &relative_file).unwrap();
         assert_eq!(result, file_path);
         assert!(result.is_absolute());
     }
@@ -303,8 +241,8 @@ mod tests {
         let file_path = temp_path.join("test.txt");
         fs::write(&file_path, "test content").unwrap();
 
-        let resolver = PathResolver::Relative;
-        let result = resolver.resolve(&temp_path, &file_path).unwrap();
+        let resolve = resolver_for(PathResolver::Relative);
+        let result = resolve(&temp_path, &file_path).unwrap();
         assert_eq!(result, PathBuf::from("test.txt"));
     }
 
@@ -320,8 +258,8 @@ mod tests {
         let result = relative_to(&temp_path, &temp_path).unwrap();
         assert_eq!(result, PathBuf::from("."));
 
-        let resolver = PathResolver::Relative;
-        let via_resolver = resolver.resolve(&temp_path, &temp_path).unwrap();
+        let resolve = resolver_for(PathResolver::Relative);
+        let via_resolver = resolve(&temp_path, &temp_path).unwrap();
         assert_eq!(via_resolver, PathBuf::from("."));
     }
 
@@ -334,12 +272,12 @@ mod tests {
         let file_path = temp_path.join("test.txt");
         fs::write(&file_path, "test content").unwrap();
 
-        let resolver = PathResolver::Canonical;
+        let resolve = resolver_for(PathResolver::Canonical);
 
         // Test with the full file path since canonicalize requires the file to exist
-        let result = resolver.resolve(&temp_path, &file_path).unwrap();
+        let result = resolve(&temp_path, &file_path).unwrap();
         // On Windows, canonicalize() adds \\?\ prefix to temp_path (and thus file_path),
-        // but resolve() strips it. Compare against the stripped expected path.
+        // but the resolver strips it. Compare against the stripped expected path.
         let expected = strip_windows_extended_length_prefix(file_path);
         assert_eq!(result, expected);
         assert!(result.is_absolute());
@@ -356,9 +294,9 @@ mod tests {
         let file_path = temp_path.join("source.c");
         fs::write(&file_path, "int main() {}").unwrap();
 
-        let resolver = PathResolver::Canonical;
+        let resolve = resolver_for(PathResolver::Canonical);
 
-        let result = resolver.resolve(&temp_path, &file_path).unwrap();
+        let result = resolve(&temp_path, &file_path).unwrap();
         let result_str = result.to_string_lossy();
         assert!(
             !result_str.starts_with(r"\\?\"),
@@ -366,7 +304,7 @@ mod tests {
             result_str
         );
 
-        let dir_result = resolver.resolve(&temp_path, &temp_path).unwrap();
+        let dir_result = resolve(&temp_path, &temp_path).unwrap();
         let dir_str = dir_result.to_string_lossy();
         assert!(
             !dir_str.starts_with(r"\\?\"),

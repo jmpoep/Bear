@@ -48,7 +48,7 @@
 //! ```
 
 use super::Entry;
-use super::path_format::{ConfigurablePathFormatter, PathFormatter};
+use super::path_format::{ResolveFn, resolver_for};
 use crate::config;
 use crate::semantic::{Argument, ArgumentKind, Command, CompilerPass, PassEffect};
 use log::warn;
@@ -61,20 +61,29 @@ use std::path::{Path, PathBuf};
 /// to convert commands into appropriately formatted entries.
 pub struct CommandConverter {
     format: config::EntryFormat,
-    path_formatter: Box<dyn PathFormatter>,
+    directory_resolver: ResolveFn,
+    file_resolver: ResolveFn,
 }
 
 impl CommandConverter {
     /// Creates a new CommandConverter with the specified format configuration.
     pub fn new(format: config::Format) -> Self {
-        let path_formatter = Box::new(ConfigurablePathFormatter::new(format.paths));
-        Self { format: format.entries, path_formatter }
+        Self::from_resolvers(
+            format.entries,
+            resolver_for(format.paths.directory),
+            resolver_for(format.paths.file),
+        )
     }
 
-    /// Creates a new CommandConverter with a custom path formatter for testing.
-    #[cfg(test)]
-    fn with_formatter(format: config::EntryFormat, path_formatter: Box<dyn PathFormatter>) -> Self {
-        Self { format, path_formatter }
+    /// Constructs the converter from raw resolver functions. Production code
+    /// goes through `new`; tests use this directly to inject deterministic
+    /// resolvers without touching the filesystem.
+    fn from_resolvers(
+        format: config::EntryFormat,
+        directory_resolver: ResolveFn,
+        file_resolver: ResolveFn,
+    ) -> Self {
+        Self { format, directory_resolver, file_resolver }
     }
 
     /// Converts a compiler command into compilation database entries.
@@ -133,7 +142,7 @@ impl CommandConverter {
     ///
     /// Returns `Some(formatted_path)` on success, `None` on formatting error.
     fn format_working_directory(&self, working_dir: &Path) -> Option<PathBuf> {
-        match self.path_formatter.format_directory(working_dir, working_dir) {
+        match (self.directory_resolver)(working_dir, working_dir) {
             Ok(dir) => Some(dir),
             Err(e) => {
                 warn!("Failed to format directory path: {}", e);
@@ -157,7 +166,7 @@ impl CommandConverter {
             .nth(0)
             .and_then(|arg| arg.as_file(path_updater))?;
 
-        match self.path_formatter.format_file(formatted_directory, &output_path) {
+        match (self.file_resolver)(formatted_directory, &output_path) {
             Ok(formatted_path) => Some(formatted_path),
             Err(e) => {
                 warn!("Failed to format output file path {}: {}", output_path.display(), e);
@@ -170,7 +179,7 @@ impl CommandConverter {
     ///
     /// Returns the formatted path, falling back to the original path on error.
     fn format_source_file(&self, formatted_directory: &Path, source_file_path: &Path) -> PathBuf {
-        match self.path_formatter.format_file(formatted_directory, source_file_path) {
+        match (self.file_resolver)(formatted_directory, source_file_path) {
             Ok(formatted_path) => formatted_path,
             Err(e) => {
                 warn!("Failed to format source file path {}: {}", source_file_path.display(), e);
@@ -356,11 +365,28 @@ impl CommandConverter {
 
 #[cfg(test)]
 mod tests {
-    use super::super::path_format::{FormatError, MockPathFormatter};
+    use super::super::path_format::FormatError;
     use super::*;
     use crate::config::{EntryFormat, Format, PathFormat, PathResolver};
     use crate::semantic::{ArgumentKind, Command, CompilerPass, PassEffect};
+    use std::ffi::OsStr;
     use std::io;
+
+    fn resolver_identity(_base: &Path, path: &Path) -> Result<PathBuf, FormatError> {
+        Ok(path.to_path_buf())
+    }
+
+    fn resolver_always_fails(_base: &Path, _path: &Path) -> Result<PathBuf, FormatError> {
+        Err(FormatError::PathCanonicalize(io::Error::other("test injected")))
+    }
+
+    fn resolver_fail_for_object_files(_base: &Path, path: &Path) -> Result<PathBuf, FormatError> {
+        if path.extension() == Some(OsStr::new("o")) {
+            Err(FormatError::PathCanonicalize(io::Error::other("test injected")))
+        } else {
+            Ok(path.to_path_buf())
+        }
+    }
 
     #[test]
     fn test_compiler_command_to_entries_single_source() {
@@ -522,118 +548,47 @@ mod tests {
     }
 
     #[test]
-    fn test_path_formatting_with_custom_formatter() {
-        let mut mock_formatter = MockPathFormatter::new();
-
-        // Set up expectations for the mock
-        mock_formatter
-            .expect_format_directory()
-            .returning(|_, dir| Ok(PathBuf::from("/formatted").join(dir.file_name().unwrap())));
-
-        mock_formatter
-            .expect_format_file()
-            .returning(|_, file| Ok(PathBuf::from(format!("formatted_{}", file.to_string_lossy()))));
-
-        let converter = CommandConverter::with_formatter(EntryFormat::default(), Box::new(mock_formatter));
-
-        let compiler_cmd = Command::from_strings(
-            "/original/dir",
-            "/usr/bin/gcc",
-            vec![
-                (ArgumentKind::Source { binary: false }, vec!["main.c"]),
-                (ArgumentKind::Output, vec!["-o", "main.o"]),
-            ],
+    fn test_directory_format_failure_yields_no_entries() {
+        let converter = CommandConverter::from_resolvers(
+            EntryFormat::default(),
+            resolver_always_fails,
+            resolver_identity,
         );
-        let command = compiler_cmd;
-
-        let entries = converter.to_entries(&command);
-
-        assert_eq!(entries.len(), 1);
-        assert_eq!(entries[0].directory, PathBuf::from("/formatted/dir"));
-        assert_eq!(entries[0].file, PathBuf::from("formatted_main.c"));
-    }
-
-    #[test]
-    fn test_path_formatting_error_handling() {
-        let mut mock_formatter = MockPathFormatter::new();
-
-        // Make format_directory fail
-        mock_formatter.expect_format_directory().returning(|_, _| {
-            Err(FormatError::PathCanonicalize(io::Error::new(io::ErrorKind::NotFound, "Directory not found")))
-        });
-
-        let converter = CommandConverter::with_formatter(EntryFormat::default(), Box::new(mock_formatter));
-
-        let compiler_cmd = Command::from_strings(
-            "/nonexistent/dir",
+        let cmd = Command::from_strings(
+            "/home/user",
             "/usr/bin/gcc",
             vec![(ArgumentKind::Source { binary: false }, vec!["main.c"])],
         );
-        let command = compiler_cmd;
-
-        // Should return empty vector when path formatting fails
-        let entries = converter.to_entries(&command);
-        assert_eq!(entries.len(), 0);
+        assert!(converter.to_entries(&cmd).is_empty());
     }
 
     #[test]
-    fn test_file_path_formatting_error_handling() {
-        let mut mock_formatter = MockPathFormatter::new();
-
-        // Directory formatting succeeds
-        mock_formatter.expect_format_directory().returning(|_, dir| Ok(dir.to_path_buf()));
-
-        // File formatting fails
-        mock_formatter.expect_format_file().returning(|_, _| {
-            Err(FormatError::PathCanonicalize(io::Error::new(io::ErrorKind::NotFound, "File not found")))
-        });
-
-        let converter = CommandConverter::with_formatter(EntryFormat::default(), Box::new(mock_formatter));
-
-        let compiler_cmd = Command::from_strings(
+    fn test_file_format_failure_falls_back_to_original_path() {
+        let converter = CommandConverter::from_resolvers(
+            EntryFormat::default(),
+            resolver_identity,
+            resolver_always_fails,
+        );
+        let cmd = Command::from_strings(
             "/home/user",
             "/usr/bin/gcc",
             vec![(ArgumentKind::Source { binary: false }, vec!["nonexistent.c"])],
         );
-        let command = compiler_cmd;
 
-        let entries = converter.to_entries(&command);
-
-        // Should still create entry but with original paths (fallback behavior)
+        let entries = converter.to_entries(&cmd);
         assert_eq!(entries.len(), 1);
-        assert_eq!(entries[0].file, PathBuf::from("nonexistent.c"));
         assert_eq!(entries[0].directory, PathBuf::from("/home/user"));
+        assert_eq!(entries[0].file, PathBuf::from("nonexistent.c"));
     }
 
     #[test]
-    fn test_output_file_formatting_error_handling() {
-        let mut mock_formatter = MockPathFormatter::new();
-
-        // Directory formatting succeeds
-        mock_formatter.expect_format_directory().returning(|_, dir| Ok(dir.to_path_buf()));
-
-        // File formatting fails for output but succeeds for source
-        mock_formatter
-            .expect_format_file()
-            .withf(|_, path| path.to_string_lossy().contains("main.o"))
-            .returning(|_, _| {
-                Err(FormatError::PathCanonicalize(io::Error::new(
-                    io::ErrorKind::NotFound,
-                    "Output file path error",
-                )))
-            });
-
-        mock_formatter
-            .expect_format_file()
-            .withf(|_, path| path.to_string_lossy().contains("main.c"))
-            .returning(|_, file| Ok(file.to_path_buf()));
-
-        let converter = CommandConverter::with_formatter(
+    fn test_output_format_failure_falls_back_only_for_output() {
+        let converter = CommandConverter::from_resolvers(
             EntryFormat { include_output_field: true, use_array_format: true },
-            Box::new(mock_formatter),
+            resolver_identity,
+            resolver_fail_for_object_files,
         );
-
-        let compiler_cmd = Command::from_strings(
+        let cmd = Command::from_strings(
             "/home/user",
             "/usr/bin/gcc",
             vec![
@@ -641,13 +596,10 @@ mod tests {
                 (ArgumentKind::Output, vec!["-o", "main.o"]),
             ],
         );
-        let command = compiler_cmd;
 
-        let entries = converter.to_entries(&command);
-
+        let entries = converter.to_entries(&cmd);
         assert_eq!(entries.len(), 1);
         assert_eq!(entries[0].file, PathBuf::from("main.c"));
-        // Output should still be present but with original path due to error fallback
         assert_eq!(entries[0].output, Some(PathBuf::from("main.o")));
     }
 
