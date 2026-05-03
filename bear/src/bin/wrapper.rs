@@ -16,10 +16,10 @@
 //! executable and then calls the real executable with the same arguments.
 
 use anyhow::{Context, Result};
+use bear::intercept::Execution;
 use bear::intercept::reporter::{Reporter, ReporterFactory};
 use bear::intercept::supervise::supervise_execution;
 use bear::intercept::wrapper::{CONFIG_FILENAME, WrapperConfig, WrapperConfigReader};
-use bear::intercept::{Event, Execution};
 use std::io::Write;
 
 /// Implementation of the wrapper process.
@@ -63,7 +63,7 @@ fn main() -> Result<()> {
 /// Report the execution to the remote collector.
 fn report(config: &WrapperConfig, real_execution: &Execution) -> Result<()> {
     let reporter = ReporterFactory::create(config.collector_address);
-    reporter.report(Event::new(real_execution.clone()))?;
+    reporter.report(real_execution.clone())?;
 
     Ok(())
 }

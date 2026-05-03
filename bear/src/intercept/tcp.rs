@@ -2,38 +2,38 @@
 
 //! The module contains the implementation of the TCP collector and reporter.
 
-use super::Event;
+use super::Execution;
 use super::reporter::{Reporter, ReporterError};
 use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-/// The serializer for events to transmit over the network.
+/// The serializer for executions to transmit over the network.
 ///
-/// The events are serialized using LV (Length-Value) format.
+/// The executions are serialized using LV (Length-Value) format.
 /// The length is a 4-byte big-endian integer, and the value is the JSON
-/// representation of the event.
-struct EventWireSerializer;
+/// representation of the execution.
+struct ExecutionWireSerializer;
 
-impl EventWireSerializer {
-    /// Read an event from a reader using LV format.
-    fn read(reader: &mut impl Read) -> Result<Event, ReporterError> {
+impl ExecutionWireSerializer {
+    /// Read an execution from a reader using LV format.
+    fn read(reader: &mut impl Read) -> Result<Execution, ReporterError> {
         let mut length_bytes = [0; 4];
         reader.read_exact(&mut length_bytes)?;
         let length = u32::from_be_bytes(length_bytes) as usize;
 
         let mut buffer = vec![0; length];
         reader.read_exact(&mut buffer)?;
-        let event = serde_json::from_slice(buffer.as_ref())?;
+        let execution = serde_json::from_slice(buffer.as_ref())?;
 
-        Ok(event)
+        Ok(execution)
     }
 
-    /// Write an event to a writer using LV format.
-    fn write(writer: &mut impl Write, event: Event) -> Result<u32, ReporterError> {
-        let serialized_event = serde_json::to_string(&event)?;
-        let bytes = serialized_event.into_bytes();
+    /// Write an execution to a writer using LV format.
+    fn write(writer: &mut impl Write, execution: Execution) -> Result<u32, ReporterError> {
+        let serialized = serde_json::to_string(&execution)?;
+        let bytes = serialized.into_bytes();
         let length = bytes.len() as u32;
 
         writer.write_all(&length.to_be_bytes())?;
@@ -43,14 +43,14 @@ impl EventWireSerializer {
     }
 }
 
-/// Represents a TCP event collector.
+/// Represents a TCP execution collector.
 pub struct CollectorOnTcp {
     shutdown: Arc<AtomicBool>,
     listener: TcpListener,
 }
 
 impl CollectorOnTcp {
-    /// Creates a new TCP event collector.
+    /// Creates a new TCP execution collector.
     ///
     /// The collector listens to a random port on the loopback interface.
     /// The address of the collector can be obtained by the `address` method.
@@ -66,9 +66,9 @@ impl CollectorOnTcp {
     /// Single-threaded implementation of the collector.
     ///
     /// The collector listens to the TCP port and accepts incoming connections.
-    /// When a connection is accepted, the collector reads the events from the
-    /// connection and emits them.
-    pub fn events(&self) -> impl Iterator<Item = Result<Event, ReporterError>> + '_ {
+    /// When a connection is accepted, the collector reads the executions from
+    /// the connection and emits them.
+    pub fn executions(&self) -> impl Iterator<Item = Result<Execution, ReporterError>> + '_ {
         let listener = &self.listener;
         let shutdown = &self.shutdown;
 
@@ -83,7 +83,7 @@ impl CollectorOnTcp {
                         let _ = connection.shutdown(std::net::Shutdown::Both);
                         None
                     } else {
-                        let result = EventWireSerializer::read(&mut connection);
+                        let result = ExecutionWireSerializer::read(&mut connection);
                         let _ = connection.shutdown(std::net::Shutdown::Both);
                         Some(result)
                     }
@@ -107,7 +107,7 @@ impl CollectorOnTcp {
     }
 }
 
-/// Represents a TCP event reporter.
+/// Represents a TCP execution reporter.
 pub struct ReporterOnTcp {
     destination: SocketAddr,
 }
@@ -123,15 +123,17 @@ impl ReporterOnTcp {
 }
 
 impl Reporter for ReporterOnTcp {
-    /// Sends an event to the remote collector.
+    /// Sends an execution to the remote collector.
     ///
-    /// The event is wrapped in an envelope and sent to the remote collector.
-    /// The TCP connection is opened and closed for each event.
-    fn report(&self, event: Event) -> Result<(), ReporterError> {
-        log::debug!("Execution report: {event:?}");
+    /// The execution's environment is trimmed to the variables relevant for
+    /// compilation database generation before serialization.
+    /// The TCP connection is opened and closed for each execution.
+    fn report(&self, execution: Execution) -> Result<(), ReporterError> {
+        let execution = execution.trim();
+        log::debug!("Execution report: {execution:?}");
 
         let mut socket = TcpStream::connect(self.destination).map_err(ReporterError::Network)?;
-        EventWireSerializer::write(&mut socket, event)?;
+        ExecutionWireSerializer::write(&mut socket, execution)?;
 
         Ok(())
     }
@@ -142,32 +144,32 @@ mod tests {
     use super::*;
     use std::io::Cursor;
 
-    // Test that the serialization and deserialization of the Envelope works.
-    // We write the Envelope to a buffer and read it back to check if the
-    // deserialized Envelope is the same as the original one.
+    // Test that the serialization and deserialization works. We write the
+    // executions to a buffer and read them back to check if the deserialized
+    // values match the originals.
     #[test]
     fn read_write_works() {
         let mut writer = Cursor::new(vec![0; 1024]);
-        for event in fixtures::EVENTS.iter() {
-            let result = EventWireSerializer::write(&mut writer, event.clone());
+        for execution in fixtures::EXECUTIONS.iter() {
+            let result = ExecutionWireSerializer::write(&mut writer, execution.clone());
             assert!(result.is_ok());
         }
 
         let mut reader = Cursor::new(writer.get_ref());
-        for event in fixtures::EVENTS.iter() {
-            let result = EventWireSerializer::read(&mut reader);
+        for execution in fixtures::EXECUTIONS.iter() {
+            let result = ExecutionWireSerializer::read(&mut reader);
             assert!(result.is_ok());
-            assert_eq!(result.unwrap(), event.clone());
+            assert_eq!(result.unwrap(), execution.clone());
         }
     }
 
     // Test that the TCP reporter and the TCP collector work together.
-    // We create a TCP collector and a TCP reporter, then we send events
+    // We create a TCP collector and a TCP reporter, then we send executions
     // to the reporter and check if the collector receives them.
     //
-    // A channel is used so the collector thread can signal that all events
-    // have been received, and a timeout prevents the test from hanging
-    // indefinitely if event delivery is broken.
+    // A channel is used so the collector thread can signal that all
+    // executions have been received, and a timeout prevents the test from
+    // hanging indefinitely if delivery is broken.
     #[test]
     fn tcp_reporter_and_collectors_work() {
         let (collector, address) = CollectorOnTcp::new().unwrap();
@@ -176,55 +178,55 @@ mod tests {
         // Channel for the collector to signal "I've received everything"
         let (done_tx, done_rx) = std::sync::mpsc::sync_channel::<()>(0);
 
-        // Start the collector in a separate thread using the events iterator
+        // Start the collector in a separate thread using the executions iterator
         let collector_thread = {
             let tcp_collector = Arc::clone(&collector_arc);
             std::thread::spawn(move || {
-                let mut received_events = Vec::new();
-                for event_result in tcp_collector.events() {
-                    match event_result {
-                        Ok(event) => {
-                            received_events.push(event);
-                            if received_events.len() == fixtures::EVENTS.len() {
+                let mut received = Vec::new();
+                for result in tcp_collector.executions() {
+                    match result {
+                        Ok(execution) => {
+                            received.push(execution);
+                            if received.len() == fixtures::EXECUTIONS.len() {
                                 let _ = done_tx.send(());
                                 break;
                             }
                         }
                         Err(err) => {
-                            log::error!("Failed to receive event: {err}");
+                            log::error!("Failed to receive execution: {err}");
                             break;
                         }
                     }
                 }
-                received_events
+                received
             })
         };
 
-        // Send events to the reporter.
-        for event in fixtures::EVENTS.iter() {
+        // Send executions to the reporter.
+        for execution in fixtures::EXECUTIONS.iter() {
             let reporter = ReporterOnTcp::new(address);
-            let result = reporter.report(event.clone());
+            let result = reporter.report(execution.clone());
             assert!(result.is_ok());
         }
 
         // Wait with a timeout — if delivery is broken, fail instead of hang.
         done_rx
             .recv_timeout(std::time::Duration::from_secs(5))
-            .expect("timed out waiting for collector to receive all events");
+            .expect("timed out waiting for collector to receive all executions");
 
         // Now safe to shutdown and join.
         collector_arc.shutdown().unwrap();
-        let received_events = collector_thread.join().unwrap();
+        let received = collector_thread.join().unwrap();
 
-        // Assert that we received all the events.
-        assert_eq!(fixtures::EVENTS.len(), received_events.len());
-        for event in received_events {
-            assert!(fixtures::EVENTS.contains(&event));
+        // Assert that we received all the executions.
+        assert_eq!(fixtures::EXECUTIONS.len(), received.len());
+        for execution in received {
+            assert!(fixtures::EXECUTIONS.contains(&execution));
         }
     }
 
-    // Test that calling shutdown on the collector stops the events iterator.
-    // No events are sent — this purely tests the shutdown mechanism.
+    // Test that calling shutdown on the collector stops the executions
+    // iterator. No data is sent — this purely tests the shutdown mechanism.
     #[test]
     fn tcp_collector_shutdown_stops_iterator() {
         let (collector, _address) = CollectorOnTcp::new().unwrap();
@@ -232,7 +234,7 @@ mod tests {
 
         let collector_thread = {
             let tcp_collector = Arc::clone(&collector_arc);
-            std::thread::spawn(move || tcp_collector.events().count())
+            std::thread::spawn(move || tcp_collector.executions().count())
         };
 
         collector_arc.shutdown().unwrap();
@@ -245,18 +247,16 @@ mod tests {
         use super::*;
         use std::collections::HashMap;
 
-        pub(super) static EVENTS: std::sync::LazyLock<Vec<Event>> = std::sync::LazyLock::new(|| {
+        pub(super) static EXECUTIONS: std::sync::LazyLock<Vec<Execution>> = std::sync::LazyLock::new(|| {
             vec![
-                Event::from_strings(3425, "/usr/bin/ls", vec!["ls", "-l"], "/tmp", HashMap::new()),
-                Event::from_strings(
-                    3492,
+                Execution::from_strings("/usr/bin/ls", vec!["ls", "-l"], "/tmp", HashMap::new()),
+                Execution::from_strings(
                     "/usr/bin/cc",
                     vec!["cc", "-c", "./file_a.c", "-o", "./file_a.o"],
                     "/home/user",
                     HashMap::from([("PATH", "/usr/bin:/bin"), ("CC", "gcc")]),
                 ),
-                Event::from_strings(
-                    3522,
+                Execution::from_strings(
                     "/usr/bin/ld",
                     vec!["ld", "-o", "./file_a", "./file_a.o"],
                     "/opt/project",

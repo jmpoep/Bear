@@ -29,9 +29,9 @@ use std::ptr;
 use std::sync::OnceLock;
 use std::sync::atomic::{AtomicPtr, Ordering};
 
+use bear::intercept::Execution;
 use bear::intercept::reporter::{Reporter, ReporterFactory};
 use bear::intercept::tcp::ReporterOnTcp;
-use bear::intercept::{Event, Execution};
 use ctor::ctor;
 use libc::{RTLD_NEXT, c_char, c_int, pid_t, posix_spawn_file_actions_t, posix_spawnattr_t};
 
@@ -965,15 +965,15 @@ where
         return;
     };
 
-    let event = match f() {
-        Ok(execution) => Event::new(execution),
+    let execution = match f() {
+        Ok(execution) => execution,
         Err(_err) => {
             log::debug!("Could not generate execution information");
             return;
         }
     };
 
-    if let Err(err) = reporter.report(event) {
+    if let Err(err) = reporter.report(execution) {
         log::debug!("Failed to report execution: {err}");
     }
 }

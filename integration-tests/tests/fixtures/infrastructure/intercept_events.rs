@@ -122,26 +122,11 @@ impl EventMatcher {
         self
     }
 
-    pub(super) fn matches(&self, event: &Value) -> bool {
+    pub(super) fn matches(&self, execution: &Value) -> bool {
         // Check event type if specified
-        if self.event_type.as_ref().is_some_and(|expected_type| event.get(expected_type).is_none()) {
+        if self.event_type.as_ref().is_some_and(|expected_type| execution.get(expected_type).is_none()) {
             return false;
         }
-
-        // Get the execution part of the event (most common case)
-        let execution = match event.get("execution") {
-            Some(exec) => exec,
-            None => {
-                // If no execution field and we're looking for execution-specific fields, fail
-                if self.executable_name.is_some()
-                    || self.executable_path.is_some()
-                    || self.arguments.is_some()
-                {
-                    return false;
-                }
-                return true; // No execution field but we're not looking for execution-specific things
-            }
-        };
 
         // Check executable path
         if let Some(ref expected_path) = self.executable_path {

@@ -14,23 +14,17 @@ fn basic_semantic_conversion() -> Result<()> {
     // Use proper JSON serialization to handle Windows paths with backslashes
 
     let event1 = json!({
-        "pid": 12345,
-        "execution": {
-            "executable": COMPILER_C_PATH,
-            "arguments": [COMPILER_C_PATH, "-c", "test.c"],
-            "working_dir": temp_dir,
-            "environment": {}
-        }
+        "executable": COMPILER_C_PATH,
+        "arguments": [COMPILER_C_PATH, "-c", "test.c"],
+        "working_dir": temp_dir,
+        "environment": {}
     });
 
     let event2 = json!({
-        "pid": 12346,
-        "execution": {
-            "executable": COMPILER_C_PATH,
-            "arguments": [COMPILER_C_PATH, "-c", "test.c"],
-            "working_dir": temp_dir,
-            "environment": {}
-        }
+        "executable": COMPILER_C_PATH,
+        "arguments": [COMPILER_C_PATH, "-c", "test.c"],
+        "working_dir": temp_dir,
+        "environment": {}
     });
 
     let events_content = format!("{}\n{}", event1, event2);
@@ -64,33 +58,24 @@ fn semantic_multiple_entries() -> Result<()> {
 
     // Create events file with multiple compilation events using new format
     let event1 = json!({
-        "pid": 12345,
-        "execution": {
-            "executable": COMPILER_C_PATH,
-            "arguments": [COMPILER_C_PATH, "-c", "test1.c"],
-            "working_dir": temp_dir,
-            "environment": {}
-        }
+        "executable": COMPILER_C_PATH,
+        "arguments": [COMPILER_C_PATH, "-c", "test1.c"],
+        "working_dir": temp_dir,
+        "environment": {}
     });
 
     let event2 = json!({
-        "pid": 12346,
-        "execution": {
-            "executable": COMPILER_CXX_PATH,
-            "arguments": [COMPILER_CXX_PATH, "-c", "test2.cpp"],
-            "working_dir": temp_dir,
-            "environment": {}
-        }
+        "executable": COMPILER_CXX_PATH,
+        "arguments": [COMPILER_CXX_PATH, "-c", "test2.cpp"],
+        "working_dir": temp_dir,
+        "environment": {}
     });
 
     let event3 = json!({
-        "pid": 12347,
-        "execution": {
-            "executable": COMPILER_C_PATH,
-            "arguments": [COMPILER_C_PATH, "-c", "test3.c", "-o", "test3.o"],
-            "working_dir": temp_dir,
-            "environment": {}
-        }
+        "executable": COMPILER_C_PATH,
+        "arguments": [COMPILER_C_PATH, "-c", "test3.c", "-o", "test3.o"],
+        "working_dir": temp_dir,
+        "environment": {}
     });
 
     let events_content = format!("{}\n{}\n{}", event1, event2, event3);
@@ -139,13 +124,10 @@ fn semantic_format_conversion() -> Result<()> {
 
     // Create events with compiler flags
     let event1 = json!({
-        "pid": 12345,
-        "execution": {
-            "executable": COMPILER_C_PATH,
-            "arguments": [COMPILER_C_PATH, "-c", "-Wall", "test.c"],
-            "working_dir": temp_dir,
-            "environment": {}
-        }
+        "executable": COMPILER_C_PATH,
+        "arguments": [COMPILER_C_PATH, "-c", "-Wall", "test.c"],
+        "working_dir": temp_dir,
+        "environment": {}
     });
 
     let events_content = event1.to_string();
@@ -185,13 +167,10 @@ fn semantic_relative_paths() -> Result<()> {
 
     // Create events with relative paths
     let event1 = json!({
-        "pid": 12345,
-        "execution": {
-            "executable": COMPILER_C_PATH,
-            "arguments": [COMPILER_C_PATH, "-c", "./src/main.c"],
-            "working_dir": temp_dir,
-            "environment": {}
-        }
+        "executable": COMPILER_C_PATH,
+        "arguments": [COMPILER_C_PATH, "-c", "./src/main.c"],
+        "working_dir": temp_dir,
+        "environment": {}
     });
 
     let events_content = event1.to_string();
@@ -227,13 +206,10 @@ fn semantic_wrapper_flags() -> Result<()> {
 
     // Create events with wrapper that adds flags
     let event1 = json!({
-        "pid": 12345,
-        "execution": {
-            "executable": COMPILER_C_PATH,
-            "arguments": [COMPILER_C_PATH, "-DWRAPPER_FLAG", "-c", "test.c"],
-            "working_dir": temp_dir,
-            "environment": {}
-        }
+        "executable": COMPILER_C_PATH,
+        "arguments": [COMPILER_C_PATH, "-DWRAPPER_FLAG", "-c", "test.c"],
+        "working_dir": temp_dir,
+        "environment": {}
     });
 
     let events_content = event1.to_string();
@@ -273,13 +249,10 @@ fn semantic_clang_plugins() -> Result<()> {
 
     // Create events with clang plugin flags
     let event1 = json!({
-        "pid": 12345,
-        "execution": {
-            "executable": COMPILER_C_PATH,
-            "arguments": [COMPILER_C_PATH, "-fplugin=libexample.so", "-c", "test.c"],
-            "working_dir": temp_dir,
-            "environment": {}
-        }
+        "executable": COMPILER_C_PATH,
+        "arguments": [COMPILER_C_PATH, "-fplugin=libexample.so", "-c", "test.c"],
+        "working_dir": temp_dir,
+        "environment": {}
     });
 
     let events_content = event1.to_string();
@@ -316,33 +289,24 @@ fn semantic_with_filtering() -> Result<()> {
 
     // Create events with both compilation and non-compilation commands
     let event1 = json!({
-        "pid": 12345,
-        "execution": {
-            "executable": COMPILER_C_PATH,
-            "arguments": [COMPILER_C_PATH, "-c", "test.c"],
-            "working_dir": temp_dir,
-            "environment": {}
-        }
+        "executable": COMPILER_C_PATH,
+        "arguments": [COMPILER_C_PATH, "-c", "test.c"],
+        "working_dir": temp_dir,
+        "environment": {}
     });
 
     let event2 = json!({
-        "pid": 12346,
-        "execution": {
-            "executable": LS_PATH,
-            "arguments": [LS_PATH, "-la"],
-            "working_dir": temp_dir,
-            "environment": {}
-        }
+        "executable": LS_PATH,
+        "arguments": [LS_PATH, "-la"],
+        "working_dir": temp_dir,
+        "environment": {}
     });
 
     let event3 = json!({
-        "pid": 12347,
-        "execution": {
-            "executable": COMPILER_C_PATH,
-            "arguments": [COMPILER_C_PATH, "-c", "test2.c"],
-            "working_dir": temp_dir,
-            "environment": {}
-        }
+        "executable": COMPILER_C_PATH,
+        "arguments": [COMPILER_C_PATH, "-c", "test2.c"],
+        "working_dir": temp_dir,
+        "environment": {}
     });
 
     let events_content = format!("{}\n{}\n{}", event1, event2, event3);
@@ -398,7 +362,7 @@ fn semantic_malformed_events() -> Result<()> {
     env.create_source_files(&[(
         "events.json",
         r#"{"invalid": "json"
-{"pid": "not_a_number", "execution": {}}
+{}
 {malformed json"#,
     )])?;
 
@@ -422,33 +386,24 @@ fn semantic_non_compilation_events() -> Result<()> {
 
     // Create events with only non-compilation commands
     let event1 = json!({
-        "pid": 12345,
-        "execution": {
-            "executable": ECHO_PATH,
-            "arguments": ["hello"],
-            "working_dir": temp_dir,
-            "environment": {}
-        }
+        "executable": ECHO_PATH,
+        "arguments": ["hello"],
+        "working_dir": temp_dir,
+        "environment": {}
     });
 
     let event2 = json!({
-        "pid": 12346,
-        "execution": {
-            "executable": MKDIR_PATH,
-            "arguments": ["-p", "build"],
-            "working_dir": temp_dir,
-            "environment": {}
-        }
+        "executable": MKDIR_PATH,
+        "arguments": ["-p", "build"],
+        "working_dir": temp_dir,
+        "environment": {}
     });
 
     let event3 = json!({
-        "pid": 12347,
-        "execution": {
-            "executable": RM_PATH,
-            "arguments": ["-f", "temp.txt"],
-            "working_dir": temp_dir,
-            "environment": {}
-        }
+        "executable": RM_PATH,
+        "arguments": ["-f", "temp.txt"],
+        "working_dir": temp_dir,
+        "environment": {}
     });
 
     let events_content = format!("{}\n{}\n{}", event1, event2, event3);
@@ -473,13 +428,10 @@ fn semantic_output_format() -> Result<()> {
     let temp_dir = env.test_dir().to_str().unwrap();
 
     let event1 = json!({
-        "pid": 12345,
-        "execution": {
-            "executable": COMPILER_C_PATH,
-            "arguments": [COMPILER_C_PATH, "-c", "test.c"],
-            "working_dir": temp_dir,
-            "environment": {}
-        }
+        "executable": COMPILER_C_PATH,
+        "arguments": [COMPILER_C_PATH, "-c", "test.c"],
+        "working_dir": temp_dir,
+        "environment": {}
     });
 
     let events_content = event1.to_string();
@@ -530,23 +482,20 @@ fn msvc_per_warning_options_preserve_separated_value() -> Result<()> {
     let cl = "cl.exe";
 
     let event = json!({
-        "pid": 1,
-        "execution": {
-            "executable": cl,
-            "arguments": [
-                cl,
-                "/w1", "4100",
-                "/w2", "4101",
-                "/w3", "4102",
-                "/w4", "4103",
-                "/wd", "4995",
-                "/we", "4996",
-                "/wo", "4819",
-                "/c", "test.c",
-            ],
-            "working_dir": temp_dir,
-            "environment": {}
-        }
+        "executable": cl,
+        "arguments": [
+            cl,
+            "/w1", "4100",
+            "/w2", "4101",
+            "/w3", "4102",
+            "/w4", "4103",
+            "/wd", "4995",
+            "/we", "4996",
+            "/wo", "4819",
+            "/c", "test.c",
+        ],
+        "working_dir": temp_dir,
+        "environment": {}
     });
 
     env.create_source_files(&[
@@ -597,22 +546,16 @@ fn msvc_wv_optional_version_is_preserved() -> Result<()> {
     // Two translation units, one per /Wv form, so the test exercises both paths
     // in a single run.
     let event_bare = json!({
-        "pid": 1,
-        "execution": {
-            "executable": cl,
-            "arguments": [cl, "/Wv", "/c", "bare.c"],
-            "working_dir": temp_dir,
-            "environment": {}
-        }
+        "executable": cl,
+        "arguments": [cl, "/Wv", "/c", "bare.c"],
+        "working_dir": temp_dir,
+        "environment": {}
     });
     let event_with_version = json!({
-        "pid": 2,
-        "execution": {
-            "executable": cl,
-            "arguments": [cl, "/Wv:17", "/c", "versioned.c"],
-            "working_dir": temp_dir,
-            "environment": {}
-        }
+        "executable": cl,
+        "arguments": [cl, "/Wv:17", "/c", "versioned.c"],
+        "working_dir": temp_dir,
+        "environment": {}
     });
 
     let events = format!("{}\n{}", event_bare, event_with_version);
@@ -656,18 +599,15 @@ fn msvc_per_warning_options_preserve_glued_value() -> Result<()> {
     let cl = "cl.exe";
 
     let event = json!({
-        "pid": 1,
-        "execution": {
-            "executable": cl,
-            "arguments": [
-                cl,
-                "/w14100", "/w24101", "/w34102", "/w44103",
-                "/wd4995", "/we4996", "/wo4819",
-                "/c", "test.c",
-            ],
-            "working_dir": temp_dir,
-            "environment": {}
-        }
+        "executable": cl,
+        "arguments": [
+            cl,
+            "/w14100", "/w24101", "/w34102", "/w44103",
+            "/wd4995", "/we4996", "/wo4819",
+            "/c", "test.c",
+        ],
+        "working_dir": temp_dir,
+        "environment": {}
     });
 
     env.create_source_files(&[
@@ -708,21 +648,18 @@ fn clang_cl_inherits_msvc_per_warning_options() -> Result<()> {
     let cl = "clang-cl.exe";
 
     let event = json!({
-        "pid": 1,
-        "execution": {
-            "executable": cl,
-            "arguments": [
-                cl,
-                "/wd4995",
-                "/we", "4996",
-                "/w3", "4102",
-                "/w44103",
-                "/Wv:17",
-                "/c", "test.c",
-            ],
-            "working_dir": temp_dir,
-            "environment": {}
-        }
+        "executable": cl,
+        "arguments": [
+            cl,
+            "/wd4995",
+            "/we", "4996",
+            "/w3", "4102",
+            "/w44103",
+            "/Wv:17",
+            "/c", "test.c",
+        ],
+        "working_dir": temp_dir,
+        "environment": {}
     });
 
     env.create_source_files(&[

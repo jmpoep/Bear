@@ -98,9 +98,7 @@ impl Execution {
     }
 
     pub fn with_executable(self, executable: &Path) -> Self {
-        let mut updated = self;
-        updated.executable = executable.to_path_buf();
-        updated
+        Self { executable: executable.to_path_buf(), ..self }
     }
 
     /// Trims the execution information to only contain relevant environment variables.
@@ -140,103 +138,29 @@ pub enum CaptureError {
     CurrentDirectory(std::io::Error),
 }
 
-/// Represent a relevant life cycle event of a process.
-///
-/// In the current implementation, we only have one event, the `Started` event.
-/// This event is sent when a process is started. It contains the process id
-/// and the execution information.
-#[derive(Debug, PartialEq, Clone, serde::Serialize, serde::Deserialize)]
-pub struct Event {
-    pub pid: u32,
-    pub execution: Execution,
-}
-
-impl Event {
-    /// Creates a new event that is originated from the current process.
-    pub fn new(execution: Execution) -> Self {
-        let pid = std::process::id();
-        Event { pid, execution: execution.trim() }
-    }
-
-    #[cfg(test)]
-    pub fn from_strings(
-        pid: u32,
-        executable: &str,
-        arguments: Vec<&str>,
-        working_dir: &str,
-        environment: HashMap<&str, &str>,
-    ) -> Self {
-        Self { pid, execution: Execution::from_strings(executable, arguments, working_dir, environment) }
-    }
-}
-
-impl fmt::Display for Event {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Event pid={}, execution={}", self.pid, self.execution)
-    }
-}
-
-impl From<&BuildCommand> for Event {
-    /// Creates an event from a build command with automatic environment trimming.
-    ///
-    /// This conversion creates an `Event` suitable for the interception pipeline.
-    /// The resulting event uses a constant PID of 0 to indicate it represents
-    /// the initial command rather than an intercepted process.
+impl From<&BuildCommand> for Execution {
+    /// Creates an execution from a build command with automatic environment trimming.
     ///
     /// The working directory is obtained from the current process, and environment
-    /// variables are automatically filtered to include only those relevant for
-    /// compilation database generation.
+    /// variables are filtered to include only those relevant for compilation
+    /// database generation.
     fn from(command: &BuildCommand) -> Self {
         let working_dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
         let environment = std::env::vars().collect();
 
-        let execution = Execution {
+        Execution {
             executable: PathBuf::from(&command.arguments[0]),
             arguments: command.arguments.clone(),
             working_dir,
             environment,
         }
-        .trim();
-
-        Event {
-            pid: 0, // Constant zero PID for initial command events
-            execution,
-        }
+        .trim()
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_build_command_to_event_from_trait() {
-        let command = BuildCommand {
-            arguments: vec!["/usr/bin/gcc".to_string(), "-c".to_string(), "test.c".to_string()],
-        };
-
-        let event = Event::from(&command);
-
-        assert_eq!(event.pid, 0);
-        assert_eq!(event.execution.executable, PathBuf::from("/usr/bin/gcc"));
-        assert_eq!(event.execution.arguments, vec!["/usr/bin/gcc", "-c", "test.c"]);
-        assert!(event.execution.working_dir.is_absolute());
-        // Environment should be trimmed to only relevant variables
-        for key in event.execution.environment.keys() {
-            assert!(relevant_env(key), "Non-relevant env var found: {}", key);
-        }
-    }
-
-    #[test]
-    fn test_build_command_to_event_into_trait() {
-        let command = BuildCommand { arguments: vec!["make".to_string()] };
-
-        let event: Event = (&command).into();
-
-        assert_eq!(event.pid, 0);
-        assert_eq!(event.execution.executable, PathBuf::from("make"));
-        assert_eq!(event.execution.arguments, vec!["make"]);
-    }
 
     #[test]
     fn test_execution_trim() {
@@ -268,33 +192,5 @@ mod tests {
         assert_eq!(trimmed.executable, PathBuf::from("/usr/bin/gcc"));
         assert_eq!(trimmed.arguments, vec!["/usr/bin/gcc", "-c", "test.c"]);
         assert_eq!(trimmed.working_dir, PathBuf::from("/tmp"));
-    }
-
-    #[test]
-    fn test_event_new_calls_trim() {
-        // Create an execution with both relevant and irrelevant environment variables
-        let environment = {
-            let mut builder = HashMap::new();
-            builder.insert("PATH".to_string(), "/usr/bin:/bin".to_string());
-            builder.insert("CC".to_string(), "gcc".to_string());
-            builder.insert("IRRELEVANT_VAR".to_string(), "value".to_string());
-            builder.insert("HOME".to_string(), "/home/user".to_string());
-            builder
-        };
-
-        let execution = Execution {
-            executable: PathBuf::from("/usr/bin/gcc"),
-            arguments: vec!["/usr/bin/gcc".to_string(), "-c".to_string(), "test.c".to_string()],
-            working_dir: PathBuf::from("/tmp"),
-            environment,
-        };
-
-        let event = Event::new(execution.clone());
-
-        // Verify that the event has a valid PID
-        assert_eq!(event.pid, std::process::id());
-
-        // Verify that trim was called - all environment variables should be relevant
-        assert_eq!(event.execution, execution.trim());
     }
 }

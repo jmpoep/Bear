@@ -170,21 +170,21 @@ mod impls {
     }
 
     impl execution::Producer for TcpEventProducer {
-        fn produce(&self, destination: Sender<intercept::Event>) -> Result<(), ReporterError> {
-            for event in self.source.events() {
-                match event {
-                    Ok(event) => {
+        fn produce(&self, destination: Sender<intercept::Execution>) -> Result<(), ReporterError> {
+            for execution in self.source.executions() {
+                match execution {
+                    Ok(execution) => {
                         // A disconnected destination means the consumer finished
                         // (normal shutdown) or failed (already logged upstream).
                         // Break out quietly rather than spamming an error line
-                        // per remaining intercepted event.
-                        if destination.send(event).is_err() {
-                            log::debug!("Consumer channel closed; stopping event forwarding");
+                        // per remaining intercepted execution.
+                        if destination.send(execution).is_err() {
+                            log::debug!("Consumer channel closed; stopping execution forwarding");
                             break;
                         }
                     }
                     Err(error) => {
-                        log::warn!("Failed to receive event: {error}");
+                        log::warn!("Failed to receive execution: {error}");
                     }
                 }
             }
@@ -225,19 +225,19 @@ mod impls {
     }
 
     impl execution::Producer for RawEventReader {
-        /// Opens the event file and reads the events while dispatching them to
-        /// the destination channel. Errors are logged and ignored.
-        fn produce(&self, destination: Sender<intercept::Event>) -> Result<(), ReporterError> {
+        /// Opens the event file and reads the executions while dispatching them
+        /// to the destination channel. Errors are logged and ignored.
+        fn produce(&self, destination: Sender<intercept::Execution>) -> Result<(), ReporterError> {
             let source =
                 fs::File::open(&self.path).map(io::BufReader::new).map_err(ReporterError::Network)?;
 
-            let events = ExecutionEventDatabase::read_and_ignore(source, |error| {
+            let executions = ExecutionEventDatabase::read_and_ignore(source, |error| {
                 log::warn!("Event file reading issue: {error:?}");
             });
 
-            for event in events {
-                if destination.send(event).is_err() {
-                    log::debug!("Consumer channel closed; stopping event forwarding");
+            for execution in executions {
+                if destination.send(execution).is_err() {
+                    log::debug!("Consumer channel closed; stopping execution forwarding");
                     break;
                 }
             }
@@ -269,9 +269,9 @@ mod impls {
     }
 
     impl execution::Consumer for RawEventWriter {
-        /// Using existing file format, write the intercepted events to the output file.
-        fn consume(self: Box<Self>, events: Receiver<intercept::Event>) -> Result<(), WriterError> {
-            ExecutionEventDatabase::write(self.destination, events.into_iter())
+        /// Using existing file format, write the intercepted executions to the output file.
+        fn consume(self: Box<Self>, executions: Receiver<intercept::Execution>) -> Result<(), WriterError> {
+            ExecutionEventDatabase::write(self.destination, executions.into_iter())
                 .map_err(|err| WriterError::Io(self.path.clone(), err))
         }
     }
@@ -306,13 +306,13 @@ mod impls {
     }
 
     impl execution::Consumer for SemanticEventWriter {
-        /// Consume the intercepted events, and transform them into semantic events,
+        /// Consume the intercepted executions, transform them into semantic events,
         /// and write them into the target file (with the right format).
-        fn consume(self: Box<Self>, events: Receiver<intercept::Event>) -> Result<(), WriterError> {
+        fn consume(self: Box<Self>, executions: Receiver<intercept::Execution>) -> Result<(), WriterError> {
             let stats = Arc::clone(self.writer.statistics());
 
             let semantics =
-                events.into_iter().filter_map(|event| match self.interpreter.recognize(event.execution) {
+                executions.into_iter().filter_map(|execution| match self.interpreter.recognize(execution) {
                     semantic::RecognizeResult::Recognized(cmd) => {
                         stats.semantic_commands_received.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                         Some(cmd)

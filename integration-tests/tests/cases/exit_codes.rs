@@ -220,7 +220,8 @@ fn semantic_exit_code_for_success() -> Result<()> {
     let env = TestEnvironment::new("semantic_exit_code_for_success")?;
 
     // Create a sample events file
-    let events_content = r#"{"pid":12345,"execution":{"executable":"/usr/bin/gcc","arguments":["-c","test.c"],"working_dir":"/tmp","environment":{}}}"#;
+    let events_content =
+        r#"{"executable":"/usr/bin/gcc","arguments":["-c","test.c"],"working_dir":"/tmp","environment":{}}"#;
     env.create_source_files(&[("events.json", events_content)])?;
 
     let result =

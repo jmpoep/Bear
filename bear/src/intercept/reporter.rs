@@ -11,17 +11,17 @@
 //! - Providing error types for initialization and reporting.
 //! - Implementing a factory to create TCP-based reporters.
 
-use crate::intercept::{Event, tcp};
+use crate::intercept::{Execution, tcp};
 use std::net::SocketAddr;
 use thiserror::Error;
 
-/// Trait for reporting intercepted events to a remote collector.
+/// Trait for reporting intercepted executions to a remote collector.
 pub trait Reporter {
-    /// Sends an event to the remote collector.
+    /// Sends an execution to the remote collector.
     ///
-    /// The event is wrapped in an envelope and sent to the remote collector.
-    /// The TCP connection is opened and closed for each event.
-    fn report(&self, event: Event) -> Result<(), ReporterError>;
+    /// The execution is serialized and sent to the remote collector.
+    /// The TCP connection is opened and closed for each execution.
+    fn report(&self, execution: Execution) -> Result<(), ReporterError>;
 }
 
 /// Errors that can occur while reporting events.

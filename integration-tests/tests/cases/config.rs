@@ -502,13 +502,10 @@ fn canonical_file_format_falls_back_for_missing_source() -> Result<()> {
     // fall back to the unformatted path.
     let temp_dir = env.test_dir().to_str().unwrap().to_string();
     let event = json!({
-        "pid": 12345,
-        "execution": {
-            "executable": COMPILER_C_PATH,
-            "arguments": [COMPILER_C_PATH, "-c", "ghost.c"],
-            "working_dir": temp_dir,
-            "environment": {}
-        }
+        "executable": COMPILER_C_PATH,
+        "arguments": [COMPILER_C_PATH, "-c", "ghost.c"],
+        "working_dir": temp_dir,
+        "environment": {}
     });
     env.create_source_files(&[("events.json", &event.to_string())])?;
 
@@ -559,13 +556,10 @@ fn relative_directory_format_does_not_break_pipeline() -> Result<()> {
     let temp_dir = env.test_dir().to_str().unwrap().to_string();
 
     let event = json!({
-        "pid": 9001,
-        "execution": {
-            "executable": COMPILER_C_PATH,
-            "arguments": [COMPILER_C_PATH, "-c", "main.c"],
-            "working_dir": temp_dir,
-            "environment": {}
-        }
+        "executable": COMPILER_C_PATH,
+        "arguments": [COMPILER_C_PATH, "-c", "main.c"],
+        "working_dir": temp_dir,
+        "environment": {}
     });
     env.create_source_files(&[("events.json", &event.to_string()), ("main.c", "int main() { return 0; }")])?;
 
@@ -615,13 +609,10 @@ fn relative_directory_alone_does_not_break_pipeline() -> Result<()> {
     let temp_dir = env.test_dir().to_str().unwrap().to_string();
 
     let event = json!({
-        "pid": 9101,
-        "execution": {
-            "executable": COMPILER_C_PATH,
-            "arguments": [COMPILER_C_PATH, "-c", "main.c"],
-            "working_dir": temp_dir,
-            "environment": {}
-        }
+        "executable": COMPILER_C_PATH,
+        "arguments": [COMPILER_C_PATH, "-c", "main.c"],
+        "working_dir": temp_dir,
+        "environment": {}
     });
     env.create_source_files(&[("events.json", &event.to_string()), ("main.c", "int main() { return 0; }")])?;
 
@@ -671,22 +662,16 @@ fn invalid_entry_is_dropped_with_warning_not_fatal() -> Result<()> {
     let valid_dir = env.test_dir().to_str().unwrap().to_string();
 
     let event_invalid = json!({
-        "pid": 7001,
-        "execution": {
-            "executable": COMPILER_C_PATH,
-            "arguments": [COMPILER_C_PATH, "-c", "bogus.c"],
-            "working_dir": "",
-            "environment": {}
-        }
+        "executable": COMPILER_C_PATH,
+        "arguments": [COMPILER_C_PATH, "-c", "bogus.c"],
+        "working_dir": "",
+        "environment": {}
     });
     let event_valid = json!({
-        "pid": 7002,
-        "execution": {
-            "executable": COMPILER_C_PATH,
-            "arguments": [COMPILER_C_PATH, "-c", "main.c"],
-            "working_dir": valid_dir,
-            "environment": {}
-        }
+        "executable": COMPILER_C_PATH,
+        "arguments": [COMPILER_C_PATH, "-c", "main.c"],
+        "working_dir": valid_dir,
+        "environment": {}
     });
     let events_content = format!("{}\n{}", event_invalid, event_valid);
     env.create_source_files(&[("events.json", &events_content), ("main.c", "int main() { return 0; }")])?;
@@ -726,13 +711,10 @@ fn all_entries_dropped_emits_error_summary() -> Result<()> {
     let env = TestEnvironment::new("all_entries_dropped")?;
 
     let event = json!({
-        "pid": 7101,
-        "execution": {
-            "executable": COMPILER_C_PATH,
-            "arguments": [COMPILER_C_PATH, "-c", "main.c"],
-            "working_dir": "",
-            "environment": {}
-        }
+        "executable": COMPILER_C_PATH,
+        "arguments": [COMPILER_C_PATH, "-c", "main.c"],
+        "working_dir": "",
+        "environment": {}
     });
     env.create_source_files(&[("events.json", &event.to_string())])?;
 
@@ -898,22 +880,16 @@ fn duplicate_match_on_file_alone_collapses_flag_variants() -> Result<()> {
     let temp_dir = env.test_dir().to_str().unwrap().to_string();
 
     let event1 = json!({
-        "pid": 1001,
-        "execution": {
-            "executable": COMPILER_C_PATH,
-            "arguments": [COMPILER_C_PATH, "-c", "-O2", "test.c"],
-            "working_dir": temp_dir,
-            "environment": {}
-        }
+        "executable": COMPILER_C_PATH,
+        "arguments": [COMPILER_C_PATH, "-c", "-O2", "test.c"],
+        "working_dir": temp_dir,
+        "environment": {}
     });
     let event2 = json!({
-        "pid": 1002,
-        "execution": {
-            "executable": COMPILER_C_PATH,
-            "arguments": [COMPILER_C_PATH, "-c", "-O3", "test.c"],
-            "working_dir": temp_dir,
-            "environment": {}
-        }
+        "executable": COMPILER_C_PATH,
+        "arguments": [COMPILER_C_PATH, "-c", "-O3", "test.c"],
+        "working_dir": temp_dir,
+        "environment": {}
     });
     let events_content = format!("{}\n{}", event1, event2);
     env.create_source_files(&[("events.json", &events_content), ("test.c", "int main() { return 0; }")])?;
@@ -967,22 +943,16 @@ fn duplicate_match_on_file_and_output_preserves_differing_outputs() -> Result<()
     let temp_dir = env.test_dir().to_str().unwrap().to_string();
 
     let event1 = json!({
-        "pid": 2001,
-        "execution": {
-            "executable": COMPILER_C_PATH,
-            "arguments": [COMPILER_C_PATH, "-c", "test.c", "-o", "debug/test.o"],
-            "working_dir": temp_dir,
-            "environment": {}
-        }
+        "executable": COMPILER_C_PATH,
+        "arguments": [COMPILER_C_PATH, "-c", "test.c", "-o", "debug/test.o"],
+        "working_dir": temp_dir,
+        "environment": {}
     });
     let event2 = json!({
-        "pid": 2002,
-        "execution": {
-            "executable": COMPILER_C_PATH,
-            "arguments": [COMPILER_C_PATH, "-c", "test.c", "-o", "release/test.o"],
-            "working_dir": temp_dir,
-            "environment": {}
-        }
+        "executable": COMPILER_C_PATH,
+        "arguments": [COMPILER_C_PATH, "-c", "test.c", "-o", "release/test.o"],
+        "working_dir": temp_dir,
+        "environment": {}
     });
     let events_content = format!("{}\n{}", event1, event2);
     env.create_source_files(&[("events.json", &events_content), ("test.c", "int main() { return 0; }")])?;
@@ -1091,13 +1061,10 @@ fn duplicate_append_mode_preserves_original_entry() -> Result<()> {
 
     // First run builds the existing database with -O2.
     let first_event = json!({
-        "pid": 3001,
-        "execution": {
-            "executable": COMPILER_C_PATH,
-            "arguments": [COMPILER_C_PATH, "-c", "-O2", "test.c"],
-            "working_dir": temp_dir,
-            "environment": {}
-        }
+        "executable": COMPILER_C_PATH,
+        "arguments": [COMPILER_C_PATH, "-c", "-O2", "test.c"],
+        "working_dir": temp_dir,
+        "environment": {}
     });
     env.create_source_files(&[
         ("events1.json", &first_event.to_string()),
@@ -1127,13 +1094,10 @@ duplicates:
     // Second run tries to add a new entry for the same file with -O3. The
     // append-mode guarantee: the original -O2 entry wins.
     let second_event = json!({
-        "pid": 3002,
-        "execution": {
-            "executable": COMPILER_C_PATH,
-            "arguments": [COMPILER_C_PATH, "-c", "-O3", "test.c"],
-            "working_dir": temp_dir,
-            "environment": {}
-        }
+        "executable": COMPILER_C_PATH,
+        "arguments": [COMPILER_C_PATH, "-c", "-O3", "test.c"],
+        "working_dir": temp_dir,
+        "environment": {}
     });
     std::fs::write(env.test_dir().join("events2.json"), second_event.to_string())?;
 

@@ -39,11 +39,9 @@ fn compilation_matcher() {
 #[test]
 fn event_matcher_executable_path() {
     let event = serde_json::json!({
-        "execution": {
-            "executable": "/usr/bin/gcc",
-            "arguments": ["gcc", "-c", "test.c"],
-            "working_directory": "/tmp"
-        }
+        "executable": "/usr/bin/gcc",
+        "arguments": ["gcc", "-c", "test.c"],
+        "working_directory": "/tmp"
     });
 
     let matcher = EventMatcher::new().executable_path("/usr/bin/gcc");
@@ -59,10 +57,8 @@ fn event_matcher_executable_path() {
 #[test]
 fn event_matcher_executable_name() {
     let event = serde_json::json!({
-        "execution": {
-            "executable": "/usr/bin/gcc",
-            "arguments": ["gcc", "-c", "test.c"]
-        }
+        "executable": "/usr/bin/gcc",
+        "arguments": ["gcc", "-c", "test.c"]
     });
 
     let matcher = EventMatcher::new().executable_name("gcc");
@@ -83,10 +79,8 @@ fn event_matcher_executable_name() {
 #[test]
 fn event_matcher_arguments() {
     let event = serde_json::json!({
-        "execution": {
-            "executable": "/usr/bin/gcc",
-            "arguments": ["gcc", "-c", "test.c", "-o", "test.o"]
-        }
+        "executable": "/usr/bin/gcc",
+        "arguments": ["gcc", "-c", "test.c", "-o", "test.o"]
     });
 
     let matcher = EventMatcher::new().arguments(vec![
@@ -104,22 +98,6 @@ fn event_matcher_arguments() {
         EventMatcher::new().arguments(vec!["gcc".to_string(), "-c".to_string(), "other.c".to_string()]);
 
     assert!(!matcher_no_match.matches(&event));
-}
-
-#[test]
-fn event_matcher_no_execution() {
-    let event = serde_json::json!({
-        "other_field": "value"
-    });
-
-    let matcher = EventMatcher::new().executable_path("/usr/bin/gcc");
-
-    // Should not match if looking for execution fields but no execution present
-    assert!(!matcher.matches(&event));
-
-    // Should match if not looking for execution-specific fields
-    let empty_matcher = EventMatcher::new();
-    assert!(empty_matcher.matches(&event));
 }
 
 #[test]
@@ -188,8 +166,8 @@ fn assert_min_count_test() -> Result<()> {
 
     // Create mock events
     let events = vec![
-        json!({"execution": {"executable": "/usr/bin/gcc", "arguments": ["gcc", "-c", "test.c"]}}),
-        json!({"execution": {"executable": "/usr/bin/gcc", "arguments": ["gcc", "-c", "test2.c"]}}),
+        json!({"executable": "/usr/bin/gcc", "arguments": ["gcc", "-c", "test.c"]}),
+        json!({"executable": "/usr/bin/gcc", "arguments": ["gcc", "-c", "test2.c"]}),
     ];
 
     let intercept_events = InterceptEvents { events };

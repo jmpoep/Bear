@@ -28,7 +28,7 @@ pub trait Consumer: Send {
     /// # Returns
     /// * `Ok(())` - All items were successfully processed
     /// * `Err(WriterError)` - An error occurred during processing
-    fn consume(self: Box<Self>, receiver: Receiver<intercept::Event>) -> Result<(), WriterError>;
+    fn consume(self: Box<Self>, receiver: Receiver<intercept::Execution>) -> Result<(), WriterError>;
 }
 
 /// A trait for producing events to a channel-based stream.
@@ -49,7 +49,7 @@ pub trait Producer: Send + Sync {
     /// # Returns
     /// * `Ok(())` - All items were successfully produced
     /// * `Err(ReporterError)` - An error occurred during production
-    fn produce(&self, sender: crossbeam_channel::Sender<intercept::Event>) -> Result<(), ReporterError>;
+    fn produce(&self, sender: crossbeam_channel::Sender<intercept::Execution>) -> Result<(), ReporterError>;
 }
 
 /// A trait for cancelling ongoing operations.
@@ -129,9 +129,9 @@ impl Interceptor {
     /// * `Ok(ExitCode::SUCCESS)` - All operations completed successfully
     /// * `Err(RuntimeError)` - An error occurred in any component
     pub fn run(self, command: BuildCommand) -> Result<ExitCode, RuntimeError> {
-        let (sender, receiver) = unbounded::<intercept::Event>();
+        let (sender, receiver) = unbounded::<intercept::Execution>();
 
-        // Inject initial command event
+        // Inject the initial command as the first execution
         let _ = sender.send((&command).into());
 
         let producer_thread = {
@@ -195,7 +195,7 @@ impl Replayer {
         // Using bounded channel to reduce memory usage and implement backpressure.
         // This is possible with replay mode, because the source is a file. While this
         // is not possible with intercept mode, because that would slow the build process.
-        let (sender, receiver) = bounded::<intercept::Event>(10);
+        let (sender, receiver) = bounded::<intercept::Execution>(10);
 
         let producer_thread = {
             let producer = self.producer;
@@ -239,7 +239,7 @@ pub enum RuntimeError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::intercept::Event;
+    use crate::intercept::Execution;
     use crate::output::{SerializationError, WriterError};
     use std::collections::HashMap;
     use std::sync::{Arc, Mutex};
@@ -258,34 +258,34 @@ mod tests {
 
     // Simple mock struct that implements both Producer and Cancellable
     struct MockCancellableProducer {
-        events: Vec<Event>,
+        executions: Vec<Execution>,
         should_fail_produce: bool,
         should_fail_cancel: bool,
         cancel_count: Arc<Mutex<usize>>,
     }
 
     impl MockCancellableProducer {
-        fn new(events: Vec<Event>) -> Self {
+        fn new(executions: Vec<Execution>) -> Self {
             Self {
-                events,
+                executions,
                 should_fail_produce: false,
                 should_fail_cancel: false,
                 cancel_count: Arc::new(Mutex::new(0)),
             }
         }
 
-        fn with_produce_failure(events: Vec<Event>) -> Self {
+        fn with_produce_failure(executions: Vec<Execution>) -> Self {
             Self {
-                events,
+                executions,
                 should_fail_produce: true,
                 should_fail_cancel: false,
                 cancel_count: Arc::new(Mutex::new(0)),
             }
         }
 
-        fn with_cancel_failure(events: Vec<Event>) -> Self {
+        fn with_cancel_failure(executions: Vec<Execution>) -> Self {
             Self {
-                events,
+                executions,
                 should_fail_produce: false,
                 should_fail_cancel: true,
                 cancel_count: Arc::new(Mutex::new(0)),
@@ -298,7 +298,10 @@ mod tests {
     }
 
     impl Producer for MockCancellableProducer {
-        fn produce(&self, sender: crossbeam_channel::Sender<intercept::Event>) -> Result<(), ReporterError> {
+        fn produce(
+            &self,
+            sender: crossbeam_channel::Sender<intercept::Execution>,
+        ) -> Result<(), ReporterError> {
             if self.should_fail_produce {
                 return Err(ReporterError::Network(std::io::Error::new(
                     std::io::ErrorKind::ConnectionRefused,
@@ -306,8 +309,8 @@ mod tests {
                 )));
             }
 
-            for event in &self.events {
-                sender.send(event.clone()).map_err(|_| {
+            for execution in &self.executions {
+                sender.send(execution.clone()).map_err(|_| {
                     ReporterError::Network(std::io::Error::new(
                         std::io::ErrorKind::BrokenPipe,
                         "Channel disconnected",
@@ -330,8 +333,8 @@ mod tests {
 
     impl CancellableProducer for MockCancellableProducer {}
 
-    fn create_test_event(pid: u32, executable: &str) -> Event {
-        Event::from_strings(pid, executable, vec!["arg1", "arg2"], "/tmp", HashMap::new())
+    fn create_test_execution(executable: &str) -> Execution {
+        Execution::from_strings(executable, vec!["arg1", "arg2"], "/tmp", HashMap::new())
     }
 
     fn create_test_command() -> BuildCommand {
@@ -358,9 +361,9 @@ mod tests {
     #[test]
     fn test_replayer_happy_path() {
         let events = vec![
-            create_test_event(1001, "/usr/bin/gcc"),
-            create_test_event(1002, "/usr/bin/clang"),
-            create_test_event(1003, "/usr/bin/g++"),
+            create_test_execution("/usr/bin/gcc"),
+            create_test_execution("/usr/bin/clang"),
+            create_test_execution("/usr/bin/g++"),
         ];
 
         let captured_events = Arc::new(Mutex::new(Vec::new()));
@@ -369,9 +372,9 @@ mod tests {
         let mut producer_mock = MockProducer::new();
         producer_mock.expect_produce().times(1).returning(move |sender| {
             let test_events = vec![
-                create_test_event(1001, "/usr/bin/gcc"),
-                create_test_event(1002, "/usr/bin/clang"),
-                create_test_event(1003, "/usr/bin/g++"),
+                create_test_execution("/usr/bin/gcc"),
+                create_test_execution("/usr/bin/clang"),
+                create_test_execution("/usr/bin/g++"),
             ];
             for event in test_events {
                 sender.send(event).expect("Failed to send test event");
@@ -420,7 +423,7 @@ mod tests {
     fn test_replayer_consumer_failure() {
         let mut producer_mock = MockProducer::new();
         producer_mock.expect_produce().times(1).returning(|sender| {
-            sender.send(create_test_event(1001, "/usr/bin/gcc")).expect("Failed to send test event");
+            sender.send(create_test_execution("/usr/bin/gcc")).expect("Failed to send test event");
             Ok(())
         });
 
@@ -465,7 +468,7 @@ mod tests {
 
     #[test]
     fn test_interceptor_happy_path() {
-        let events = vec![create_test_event(2001, "/usr/bin/gcc"), create_test_event(2002, "/usr/bin/clang")];
+        let events = vec![create_test_execution("/usr/bin/gcc"), create_test_execution("/usr/bin/clang")];
 
         let captured_events = Arc::new(Mutex::new(Vec::new()));
         let captured_events_clone = Arc::clone(&captured_events);
@@ -493,13 +496,12 @@ mod tests {
         let consumed_events = captured_events.lock().expect("Failed to lock captured_events mutex");
         assert_eq!(consumed_events.len(), 3);
 
-        // Verify the first event is the initial command event
-        let initial_event = &consumed_events[0];
-        assert_eq!(initial_event.pid, 0);
-        assert_eq!(initial_event.execution.executable.to_str().unwrap(), "make");
-        assert_eq!(initial_event.execution.arguments, vec!["make", "all"]);
+        // Verify the first item is the initial command execution
+        let initial = &consumed_events[0];
+        assert_eq!(initial.executable.to_str().unwrap(), "make");
+        assert_eq!(initial.arguments, vec!["make", "all"]);
 
-        // Verify the remaining events match the mock producer events
+        // Verify the remaining items match the mock producer executions
         assert_eq!(consumed_events[1..], events);
         assert_eq!(producer_mock.cancel_call_count(), 1);
     }
@@ -526,7 +528,7 @@ mod tests {
 
     #[test]
     fn test_interceptor_producer_failure() {
-        let events = vec![create_test_event(2001, "/usr/bin/gcc")];
+        let events = vec![create_test_execution("/usr/bin/gcc")];
         let producer_mock = Arc::new(MockCancellableProducer::with_produce_failure(events));
 
         let mut consumer_mock = MockConsumer::new();
@@ -553,7 +555,7 @@ mod tests {
 
     #[test]
     fn test_interceptor_consumer_failure() {
-        let events = vec![create_test_event(2001, "/usr/bin/gcc")];
+        let events = vec![create_test_execution("/usr/bin/gcc")];
         let producer_mock = Arc::new(MockCancellableProducer::new(events));
 
         let mut consumer_mock = MockConsumer::new();
@@ -578,7 +580,7 @@ mod tests {
 
     #[test]
     fn test_interceptor_cancel_failure() {
-        let events = vec![create_test_event(2001, "/usr/bin/gcc")];
+        let events = vec![create_test_execution("/usr/bin/gcc")];
         let producer_mock = Arc::new(MockCancellableProducer::with_cancel_failure(events));
 
         let mut consumer_mock = MockConsumer::new();
@@ -605,7 +607,7 @@ mod tests {
 
     #[test]
     fn test_interceptor_non_zero_exit_code() {
-        let events = vec![create_test_event(2001, "/usr/bin/gcc")];
+        let events = vec![create_test_execution("/usr/bin/gcc")];
         let producer_mock = Arc::new(MockCancellableProducer::new(events));
 
         let mut consumer_mock = MockConsumer::new();
@@ -631,9 +633,9 @@ mod tests {
     #[test]
     fn test_interceptor_coordination_timing() {
         let events = vec![
-            create_test_event(3001, "/usr/bin/gcc"),
-            create_test_event(3002, "/usr/bin/clang"),
-            create_test_event(3003, "/usr/bin/g++"),
+            create_test_execution("/usr/bin/gcc"),
+            create_test_execution("/usr/bin/clang"),
+            create_test_execution("/usr/bin/g++"),
         ];
 
         let captured_events = Arc::new(Mutex::new(Vec::new()));
@@ -666,13 +668,12 @@ mod tests {
         let consumed_events = captured_events.lock().expect("Failed to lock captured_events mutex");
         assert_eq!(consumed_events.len(), 4);
 
-        // Verify the first event is the initial command event
-        let initial_event = &consumed_events[0];
-        assert_eq!(initial_event.pid, 0);
-        assert_eq!(initial_event.execution.executable.to_str().unwrap(), "make");
-        assert_eq!(initial_event.execution.arguments, vec!["make", "all"]);
+        // Verify the first item is the initial command execution
+        let initial = &consumed_events[0];
+        assert_eq!(initial.executable.to_str().unwrap(), "make");
+        assert_eq!(initial.arguments, vec!["make", "all"]);
 
-        // Verify the remaining events match the mock producer events
+        // Verify the remaining items match the mock producer executions
         assert_eq!(consumed_events[1..], events);
         assert_eq!(producer_mock.cancel_call_count(), 1);
     }
@@ -680,9 +681,9 @@ mod tests {
     #[test]
     fn test_replayer_coordination_timing() {
         let events = vec![
-            create_test_event(4001, "/usr/bin/gcc"),
-            create_test_event(4002, "/usr/bin/clang"),
-            create_test_event(4003, "/usr/bin/g++"),
+            create_test_execution("/usr/bin/gcc"),
+            create_test_execution("/usr/bin/clang"),
+            create_test_execution("/usr/bin/g++"),
         ];
 
         let captured_events = Arc::new(Mutex::new(Vec::new()));
@@ -691,9 +692,9 @@ mod tests {
         let mut producer_mock = MockProducer::new();
         producer_mock.expect_produce().times(1).returning(move |sender| {
             let test_events = vec![
-                create_test_event(4001, "/usr/bin/gcc"),
-                create_test_event(4002, "/usr/bin/clang"),
-                create_test_event(4003, "/usr/bin/g++"),
+                create_test_execution("/usr/bin/gcc"),
+                create_test_execution("/usr/bin/clang"),
+                create_test_execution("/usr/bin/g++"),
             ];
             for event in test_events {
                 std::thread::sleep(Duration::from_millis(5));
