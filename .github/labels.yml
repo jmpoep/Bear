@@ -1,0 +1,67 @@
+# Source of truth for GitHub issue and PR labels on this repository.
+# Format consumable by github.com/EndBug/label-sync (and similar actions).
+# To apply changes: run a label-sync action against this file, or re-create
+# manually with `gh label create / edit`.
+
+# --- Kind (issue type) ---
+- name: bug
+  color: 'fc2929'
+- name: enhancement
+  color: '84b6eb'
+- name: documentation
+  color: '0075ca'
+  description: 'Improvements or fixes to docs (README, man page, comments).'
+- name: question
+  color: 'cc317c'
+
+# --- Disposition ---
+- name: duplicate
+  color: 'cccccc'
+- name: invalid
+  color: 'e6e6e6'
+- name: wontfix
+  color: 'ffffff'
+
+# --- Triage and workflow ---
+- name: needs-repro
+  color: 'c2e0c6'
+  description: 'Cannot be triaged without a fresh reproduction on current code.'
+- name: need help
+  color: 'fbca04'
+  description: "This is something that I can't do myself."
+- name: next
+  color: 'c2e0c6'
+  description: 'will work on this in the near future'
+
+# --- Area (subsystem) ---
+- name: 'area:interception'
+  color: '0052cc'
+  description: 'Compiler invocation capture (preload library, wrapper executable).'
+- name: 'area:semantic'
+  color: '0e8a16'
+  description: 'Command recognition and interpreter logic.'
+- name: 'area:output'
+  color: '5319e7'
+  description: 'compile_commands.json formatting and writing.'
+- name: 'area:config'
+  color: '006b75'
+  description: 'User configuration and CLI arguments.'
+- name: 'area:build'
+  color: 'bf8700'
+  description: 'Build pipeline, platform probes, packaging.'
+
+# --- Legacy area-ish labels (kept; revisit during retro) ---
+- name: static binary
+  color: '684df2'
+- name: generic output
+  color: '657500'
+- name: encode
+  color: 'a6cdea'
+
+# --- Pull request tags ---
+- name: dependencies
+  color: '0366d6'
+  description: 'Pull requests that update a dependency file'
+- name: rust
+  color: '000000'
+  description: 'Pull requests that update rust code'
