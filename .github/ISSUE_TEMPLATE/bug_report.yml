@@ -1,0 +1,196 @@
+name: Bug report
+description: Report a problem with Bear's interception, output, or behavior.
+title: "[Bug]: "
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug report. The more concrete
+        detail you give, the faster the issue can be diagnosed.
+
+        For general questions or feature ideas, please use
+        [Discussions](https://github.com/rizsotto/Bear/discussions) instead.
+
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Pre-flight checklist
+      options:
+        - label: I have read the `README.md` and `man bear`.
+          required: true
+        - label: I have searched existing issues (open and closed).
+          required: true
+        - label: I have confirmed the build works without Bear.
+          required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Describe the bug
+      description: A clear and concise description of what the bug is.
+      placeholder: e.g. Bear produces an empty compile_commands.json when ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: command
+    attributes:
+      label: Exact Bear command
+      description: The full command you ran, including the build invocation after `--`.
+      placeholder: bear -- make -j8
+      render: shell
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Minimal steps to reproduce, including any setup. If possible, link to a public repository that demonstrates the issue.
+      placeholder: |
+        1. Clone https://github.com/...
+        2. Run `bear -- make`
+        3. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What did you expect to happen? If the issue is about a missing or incorrect entry in `compile_commands.json`, paste the entry you expected.
+      render: shell
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: What actually happened? Paste the relevant output, the offending `compile_commands.json` entry (or note its absence), or the error you saw.
+      render: shell
+    validations:
+      required: true
+
+  - type: textarea
+    id: debug-log
+    attributes:
+      label: Debug log
+      description: Output of re-running with debug logs enabled, e.g. `RUST_LOG=debug bear -- make`. Paste inline or attach as a file. Strongly encouraged - most bugs cannot be diagnosed without it.
+      render: shell
+
+  - type: input
+    id: bear-version
+    attributes:
+      label: Bear version
+      description: Output of `bear --version`.
+      placeholder: "4.1.3"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: install-method
+    attributes:
+      label: Install method
+      options:
+        - Built from source
+        - Distro package (apt, dnf, pacman, etc.)
+        - Homebrew
+        - MacPorts
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: install-detail
+    attributes:
+      label: Install method detail
+      description: If a distro or third-party package, name it (e.g. `apt on Debian 12`, `Homebrew 4.x`, `aur/bear-git`). Leave blank if built from source.
+      placeholder: e.g. apt on Debian 12 stable
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - Linux
+        - macOS
+        - FreeBSD
+        - OpenBSD
+        - NetBSD
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: os-version
+    attributes:
+      label: OS version
+      description: e.g. `Ubuntu 24.04`, `macOS 14.5`, `FreeBSD 14.0`. Output of `uname -sr` is fine.
+      placeholder: Ubuntu 24.04
+    validations:
+      required: true
+
+  - type: dropdown
+    id: arch
+    attributes:
+      label: Architecture
+      description: Output of `uname -m`.
+      options:
+        - x86_64
+        - aarch64
+        - arm64
+        - armv7
+        - i686
+        - riscv64
+        - ppc64le
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: build-tool
+    attributes:
+      label: Build tool
+      multiple: true
+      options:
+        - GNU make
+        - CMake
+        - Ninja
+        - Autotools (configure)
+        - Bazel
+        - Meson
+        - Plain shell script
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: compiler
+    attributes:
+      label: Compiler and version
+      description: Which compiler the build invokes, and its version (e.g. `gcc 13.2.0`, `clang 18.1.0`). If multiple, list them. Include any wrapper in use (`ccache`, `distcc`, `mpicc`, `nvcc`, ...).
+      placeholder: clang 18.1.0
+    validations:
+      required: true
+
+  - type: input
+    id: cross-compile
+    attributes:
+      label: Cross-compilation target (optional)
+      description: Leave blank if compiling for the host architecture.
+      placeholder: e.g. aarch64-linux-gnu
+
+  - type: input
+    id: project-link
+    attributes:
+      label: Project reference (optional)
+      description: A link to the source code being built helps reproduction. Leave blank if it is closed source.
+      placeholder: https://github.com/...
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional context
+      description: Anything else worth knowing - workarounds tried, related issues, environment variables set (e.g. `INTERCEPT_LIBDIR`), unusual toolchain setup, etc.
