@@ -119,9 +119,11 @@ records the value of the invocation's output flag (`-o`, MSVC `/Fo`,
   because the extension is `.C`, while on Windows and typical macOS
   configurations the same file also matches extension lists written
   in lowercase
-- Response files (`@argfile`) are observed as written by the build;
-  Bear does not expand them. An entry whose original command used
-  `@args.rsp` will contain `@args.rsp` in its `arguments`
+- Response files (`@argfile`) are observed as written by the build.
+  By default Bear does not expand them: an entry whose original
+  command used `@args.rsp` contains `@args.rsp` in its `arguments`.
+  Inlining the contents of these files into the entry is an opt-in
+  behaviour governed by `output-response-file-inlining`
 
 ## Testing
 
