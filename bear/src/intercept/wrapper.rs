@@ -554,7 +554,7 @@ mod tests {
         let wrapper_dir = {
             let wrapper_path = {
                 let file = temp_dir.path().join("wrapper");
-                std::fs::write(&file, "#!/bin/bash\necho wrapper").unwrap();
+                std::fs::write(&file, "#!/bin/sh\necho wrapper").unwrap();
                 file
             };
             let mut builder =
@@ -589,7 +589,7 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let wrapper_path = {
             let file = temp_dir.path().join("wrapper");
-            std::fs::write(&file, "#!/bin/bash\necho wrapper").unwrap();
+            std::fs::write(&file, "#!/bin/sh\necho wrapper").unwrap();
             file
         };
 
@@ -609,7 +609,7 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let wrapper_path = {
             let file = temp_dir.path().join("wrapper");
-            std::fs::write(&file, "#!/bin/bash\necho wrapper").unwrap();
+            std::fs::write(&file, "#!/bin/sh\necho wrapper").unwrap();
             file
         };
 

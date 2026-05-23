@@ -398,7 +398,7 @@ mod tests {
 
     #[test]
     fn test_from_envp_returns_none_when_intercept_state_not_found() {
-        let envp = TestEnvp::new(&["PATH=/usr/bin", "HOME=/home/user", "SHELL=/bin/bash"]);
+        let envp = TestEnvp::new(&["PATH=/usr/bin", "HOME=/home/user", "SHELL=/bin/sh"]);
 
         let result = unsafe { from_envp(envp.as_ptr()) };
         assert!(result.is_none());
@@ -588,7 +588,7 @@ mod tests {
     #[test]
     fn test_doctored_environment_preserves_other_variables() {
         let ctx = create_test_ctx();
-        let envp = TestEnvp::new(&["PATH=/usr/bin", "HOME=/home/user", "SHELL=/bin/bash"]);
+        let envp = TestEnvp::new(&["PATH=/usr/bin", "HOME=/home/user", "SHELL=/bin/sh"]);
 
         let result = DoctoredEnvironment::from_envp(&ctx, envp.as_ptr());
         assert!(result.is_ok());
@@ -600,7 +600,7 @@ mod tests {
         // Check that original variables are preserved
         assert!(env_strings.iter().any(|s| s == "PATH=/usr/bin"));
         assert!(env_strings.iter().any(|s| s == "HOME=/home/user"));
-        assert!(env_strings.iter().any(|s| s == "SHELL=/bin/bash"));
+        assert!(env_strings.iter().any(|s| s == "SHELL=/bin/sh"));
     }
 
     #[test]

@@ -466,17 +466,17 @@ mod test {
         let intel_wrapper = temp_dir.path().join("ifort-wrapper");
         let cray_wrapper = temp_dir.path().join("ftn-wrapper");
 
-        fs::write(&gcc_wrapper, "#!/bin/bash\necho gcc wrapper").unwrap();
-        fs::write(&clang_wrapper, "#!/bin/bash\necho clang wrapper").unwrap();
-        fs::write(&fortran_wrapper, "#!/bin/bash\necho fortran wrapper").unwrap();
-        fs::write(&intel_wrapper, "#!/bin/bash\necho intel wrapper").unwrap();
-        fs::write(&cray_wrapper, "#!/bin/bash\necho cray wrapper").unwrap();
+        fs::write(&gcc_wrapper, "#!/bin/sh\necho gcc wrapper").unwrap();
+        fs::write(&clang_wrapper, "#!/bin/sh\necho clang wrapper").unwrap();
+        fs::write(&fortran_wrapper, "#!/bin/sh\necho fortran wrapper").unwrap();
+        fs::write(&intel_wrapper, "#!/bin/sh\necho intel wrapper").unwrap();
+        fs::write(&cray_wrapper, "#!/bin/sh\necho cray wrapper").unwrap();
 
         // Create wrapper executable and directory for validation
         let wrapper_dir = temp_dir.path().join("wrapper");
         std::fs::create_dir(&wrapper_dir).unwrap();
         let wrapper_exe = wrapper_dir.join("wrapper");
-        fs::write(&wrapper_exe, "#!/bin/bash\necho wrapper").unwrap();
+        fs::write(&wrapper_exe, "#!/bin/sh\necho wrapper").unwrap();
 
         let config_with_hints = format!(
             r#"
