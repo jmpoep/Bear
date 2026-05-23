@@ -10,13 +10,13 @@ branch is `X.Y.Z-rc`; the destination branch is `master`.
 
 - All work for the release is on `X.Y.Z-rc`, branched from `master`.
 - `master` has no commits the rc branch is missing:
-  ```bash
+  ```sh
   git fetch origin
   git log --oneline HEAD..origin/master   # must be empty
   ```
   If non-empty, rebase the rc branch onto `master` first.
 - Latest CI run on `X.Y.Z-rc` is green:
-  ```bash
+  ```sh
   gh run list --branch X.Y.Z-rc --limit 1
   ```
 
@@ -24,7 +24,7 @@ branch is `X.Y.Z-rc`; the destination branch is `master`.
 
 Run from the repo root on the rc branch:
 
-```bash
+```sh
 cargo fmt --check
 cargo clippy --all-targets -- -D warnings
 cargo build --verbose          # integration tests need a debug build
@@ -44,7 +44,7 @@ Then verify the release metadata:
 
 If the man page date or content changed, regenerate `bear.1`:
 
-```bash
+```sh
 cd man && pandoc -s -t man bear.1.md -o bear.1
 ```
 
@@ -55,7 +55,7 @@ Commit any pre-flight fixups to `X.Y.Z-rc` and let CI run again.
 Use a fast-forward merge to keep `master`'s first-parent history linear, which
 is the convention the 4.x series follows.
 
-```bash
+```sh
 git checkout master
 git pull --ff-only origin master
 git merge --ff-only X.Y.Z-rc
@@ -71,7 +71,7 @@ message body uses the `v`-prefixed form.
 
 Verify your signing config once:
 
-```bash
+```sh
 git config --get gpg.format        # ssh
 git config --get user.signingkey   # path or key starting with "key::"
 git config --get tag.gpgsign       # true (recommended)
@@ -79,14 +79,14 @@ git config --get tag.gpgsign       # true (recommended)
 
 Then tag the merge tip:
 
-```bash
+```sh
 git tag -s X.Y.Z -m "vX.Y.Z"
 git tag --verify X.Y.Z             # confirm signature is good
 ```
 
 ## 5. Push
 
-```bash
+```sh
 git push origin master
 git push origin X.Y.Z
 ```
@@ -113,7 +113,7 @@ Trailer:
 
 Useful inputs while drafting:
 
-```bash
+```sh
 # commit subjects since the previous tag
 git log --pretty="%s" PREV..X.Y.Z
 
@@ -132,7 +132,7 @@ reused for the GitHub release and the discussion announcement.
 
 ## 7. Publish the GitHub release
 
-```bash
+```sh
 gh release create X.Y.Z \
     --title X.Y.Z \
     --notes-file /tmp/release-notes.md \
@@ -157,7 +157,7 @@ Keep the announcement short:
 
 Post with:
 
-```bash
+```sh
 gh api graphql -f query='
   mutation($id: ID!, $body: String!) {
     addDiscussionComment(input: {discussionId: $id, body: $body}) {

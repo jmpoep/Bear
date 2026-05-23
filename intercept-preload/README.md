@@ -29,13 +29,13 @@ On unsupported platforms, the build process will display a warning and skip libr
 
 To build `libexec` in debug mode:
 
-```bash
+```sh
 cargo build -p intercept-preload
 ```
 
 For the release version:
 
-```bash
+```sh
 cargo build -p intercept-preload --release
 ```
 

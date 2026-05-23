@@ -41,7 +41,7 @@ to regenerate, then `cargo test` to validate. See
 
 Generated from `clap` definitions at build time:
 
-```bash
+```sh
 target/release/generate-completions target/release/completions
 ```
 

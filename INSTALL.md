@@ -7,7 +7,7 @@ installation.
 
 Common package manager commands:
 
-   ```bash
+   ```sh
    # Debian / Ubuntu
    sudo apt install bear
 
@@ -39,13 +39,13 @@ Bear is now implemented in Rust, so the Rust toolchain is required.
 **Rust toolchain** (1.85 or later): Bear uses the Rust 2024 edition, which
 requires Rust 1.85+. Install Rust using [rustup](https://rustup.rs/):
 
-   ```bash
+   ```sh
    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
    ```
 
 Ensure that `cargo` and `rustc` are available in your `PATH`:
 
-   ```bash
+   ```sh
    rustc --version   # must be >= 1.85
    cargo --version
    ```
@@ -58,23 +58,23 @@ If your are building for Linux/ELF platform, ensure `lld` is installed, as `ld` 
 ## Simple installation
 
 1. Clone the repository:
-   ```bash
+   ```sh
    git clone https://github.com/rizsotto/Bear.git
    cd Bear
    ```
 
 2. Build:
-   ```bash
+   ```sh
    cargo build --release
    ```
 
 3. (Optional) Generate shell completions:
-   ```bash
+   ```sh
    target/release/generate-completions target/release/completions
    ```
 
 4. Install:
-   ```bash
+   ```sh
    ./scripts/install.sh
    ```
 
@@ -83,7 +83,7 @@ If your are building for Linux/ELF platform, ensure `lld` is installed, as `ld` 
    elvish to standard locations.
 
 5. Verify the installation:
-   ```bash
+   ```sh
    bear --version
    bear -- true   # quick smoke test - should produce an empty compile_commands.json
    ```
@@ -100,7 +100,7 @@ By default, Bear is installed to `/usr/local` (when run as root) or
 `$HOME/.local` (otherwise). You can override the installation prefix with
 `PREFIX`:
 
-   ```bash
+   ```sh
    sudo PREFIX=/usr ./scripts/install.sh
    ```
 
@@ -112,7 +112,7 @@ The preload library directory name defaults to `lib`. On systems where a
 different directory is needed, set `INTERCEPT_LIBDIR` at both build and
 install time:
 
-   ```bash
+   ```sh
    # Build with the correct library directory compiled in
    INTERCEPT_LIBDIR=lib64 cargo build --release
 
@@ -152,7 +152,7 @@ If you are a package maintainer for a distribution:
 
 - Build, generate completions, and install with `DESTDIR`, `PREFIX`, and
   `INTERCEPT_LIBDIR`:
-  ```bash
+  ```sh
   INTERCEPT_LIBDIR=lib64 cargo build --release
   target/release/generate-completions target/release/completions
   DESTDIR=$pkgdir PREFIX=/usr INTERCEPT_LIBDIR=lib64 ./scripts/install.sh

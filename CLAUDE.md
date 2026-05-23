@@ -1,6 +1,6 @@
 ## Pre-commit checks (mandatory)
 
-```bash
+```sh
 cargo fmt --check
 cargo clippy --all-targets -- -D warnings
 cargo test
@@ -10,7 +10,7 @@ Do not commit unless all three pass. Fix issues before committing.
 
 ## Build
 
-```bash
+```sh
 cargo build --verbose          # debug
 cargo build --release          # release (LTO, stripped)
 ```

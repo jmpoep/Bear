@@ -6,7 +6,7 @@
 
 After editing `bear.1.md`, regenerate:
 
-```bash
+```sh
 pandoc -s -t man bear.1.md -o bear.1
 ```
 

@@ -52,7 +52,7 @@ Rules:
 
 To find tests for a requirement:
 
-```bash
+```sh
 grep -rn "Requirements:.*<requirement-id>" bear/ intercept-preload/ integration-tests/
 ```
 
@@ -66,7 +66,7 @@ stdout/stderr to the test binary's stderr. `run_bear` inherits `RUST_LOG`
 when set; if unset it defaults to `info` (so warn/info/error log lines reach
 the panic dump without the per-event debug spam from the preload library).
 
-```bash
+```sh
 cargo test                                          # info-level dump on failure
 RUST_LOG=debug cargo test                           # full per-event trace (recommended for local triage)
 BEAR_TEST_PRESERVE_FAILURES=1 cargo test            # also keep temp dirs at /tmp/bear-test-<name>-<pid>

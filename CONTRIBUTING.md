@@ -13,7 +13,7 @@ Bear is a Cargo workspace with the following crates:
 
 Build, lint, and test with:
 
-   ```bash
+   ```sh
    cargo fmt --check
    cargo clippy --all-targets -- -D warnings
    cargo test

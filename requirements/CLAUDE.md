@@ -90,13 +90,13 @@ Rules:
 
 To find every test that protects a requirement:
 
-```bash
+```sh
 grep -rn "Requirements:.*<requirement-id>" bear/ intercept-preload/ integration-tests/
 ```
 
 For example, to find tests for `output-append`:
 
-```bash
+```sh
 grep -rn "Requirements:.*output-append" bear/ intercept-preload/ integration-tests/
 ```
 
@@ -106,7 +106,7 @@ grep -rn "Requirements:.*output-append" bear/ intercept-preload/ integration-tes
 each `implemented` requirement has at least one `Requirements:` tag referencing
 it. Run it from the repo root:
 
-```bash
+```sh
 ./requirements/check-coverage.sh
 ```
 
