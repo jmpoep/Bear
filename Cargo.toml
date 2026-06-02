@@ -24,14 +24,14 @@ thiserror = "2.0"
 anyhow = "1.0"
 serde = { version = "1.0", default-features = false, features = ["derive"] }
 serde_json = { version = "1.0", default-features = false, features = ["std"] }
-serde-saphyr = "0.0.24"
+serde-saphyr = "0.0.27"
 crossbeam-channel = { version = "0.5", default-features = false, features = ["std"] }
-clap = { version = "4.5", default-features = false, features = ["std", "cargo", "help", "usage", "suggestions"] }
-clap_complete = { version = "4.5", default-features = false }
+clap = { version = "4.6", default-features = false, features = ["std", "cargo", "help", "usage", "suggestions"] }
+clap_complete = { version = "4.6", default-features = false }
 log = { version = "0.4", default-features = false, features = ["std"] }
 env_logger = { version = "0.11", default-features = false }
 shell-words = "1.1"
-tempfile = { version = "3.19", default-features = false }
+tempfile = { version = "3.27", default-features = false }
 signal-hook = { version = "0.4", default-features = false }
 regex-lite = "0.1"
 libc = "0.2"
@@ -39,7 +39,7 @@ errno = "0.3"
 ctor = "0.6"
 which = "8.0"
 cc = "1.2"
-assert_cmd = "2.0"
+assert_cmd = "2.2"
 assert_fs = "1.1"
 predicates = "3.1"
 mockall = "0.14"
