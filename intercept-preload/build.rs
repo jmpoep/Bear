@@ -35,11 +35,23 @@ fn main() {
     if cfg!(target_family = "unix") {
         let out_dir = std::env::var("OUT_DIR").unwrap();
 
-        let intercept_symbols: Vec<&str> = platform_checks::DETECTED_SYMBOLS
+        let mut intercept_symbols: Vec<&str> = platform_checks::DETECTED_SYMBOLS
             .iter()
             .copied()
             .filter(|s| INTERCEPT_FAMILY.contains(s))
             .collect();
+
+        // musl exposes the execvpe implementation as the namespace-reserved
+        // __execvpe and makes execvpe a weak alias. On some arches (e.g. s390x)
+        // callers bind to __execvpe directly, so we must export and intercept it
+        // too. It is handled here rather than via the platform-checks probe /
+        // INTERCEPT_FAMILY pattern because no public header declares __execvpe
+        // (the host probe cannot reference it) and it is musl-specific. glibc
+        // does not need this: its execvpe export is the real symbol.
+        let is_musl = std::env::var("CARGO_CFG_TARGET_ENV").as_deref() == Ok("musl");
+        if is_musl && intercept_symbols.contains(&"execvpe") {
+            intercept_symbols.push("__execvpe");
+        }
 
         // Compile the C shim for all intercepted functions
         // This handles variadic arguments properly (execl family) and provides
