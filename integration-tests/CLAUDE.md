@@ -42,7 +42,7 @@ fn append_works_as_expected() -> Result<()> { ... }
 Rules:
 
 - Value is a comma-separated list of requirement IDs (filenames in
-  `requirements/` without the `.md` extension).
+  `docs/requirements/` without the `.md` extension).
 - Place the tag on the line(s) directly above `#[test]` (or the test macro).
 - If every test in a file covers the same requirement, a file-level
   `//! Requirements: <id>` near the top is sufficient. Test-level tags
@@ -56,7 +56,7 @@ To find tests for a requirement:
 grep -rn "Requirements:.*<requirement-id>" bear/ intercept-preload/ integration-tests/
 ```
 
-See `requirements/CLAUDE.md` for the coverage-check script that verifies every
+See `docs/requirements/CLAUDE.md` for the coverage-check script that verifies every
 `implemented` requirement has at least one tagged test.
 
 ## Debugging

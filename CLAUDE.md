@@ -47,7 +47,10 @@ These files contain rules, context, and constraints specific to that area.
 | Touch the shell-completions binary | `bear-completions/CLAUDE.md` |
 | Write or modify integration tests | `integration-tests/CLAUDE.md` |
 | Edit or regenerate the man page | `man/CLAUDE.md` |
-| Add, modify, or review a requirement | `requirements/CLAUDE.md` |
+| Find project documentation or how it is organized | `docs/CLAUDE.md` |
+| Add, modify, or review a requirement (contract) | `docs/requirements/CLAUDE.md` |
+| Record or look up a design decision, or a rejected option | `docs/rationale/CLAUDE.md` |
+| Run an operational procedure (release, ...) | invocable skills in `.claude/skills/` |
 
 Do not skip these reads. They contain constraints that prevent regressions.
 
@@ -89,8 +92,8 @@ The workspace builds in three layers before linking the user-facing binaries:
 
 For architectural changes or new features:
 
-1. Check `requirements/` for existing requirement specs
-2. Write a requirement spec if one does not exist (see `requirements/CLAUDE.md`)
+1. Check `docs/requirements/` for existing requirement specs
+2. Write a requirement spec if one does not exist (see `docs/requirements/CLAUDE.md`)
 3. Provide a Decision Log before writing code:
    - Proposed approach
    - Alternatives considered
