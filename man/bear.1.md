@@ -280,6 +280,17 @@ step, which captures the compiler to build the project. In case of Bear is
 using the _wrapper_ mode, it needs to run the configure step with Bear too
 (and discard that output), before run the build with Bear.
 
+## GLIBC Version Errors in Cross-Compilation
+
+When the build runs compilers from a cross-compilation SDK and you see an
+error like `version 'GLIBC_2.33' not found (required by .../libexec.so)`,
+Bear's preload library was built against a newer glibc than the SDK toolchain
+provides. The library must be ABI-compatible not only with the host system
+but also with the libc the intercepted compiler process loads from the SDK
+sysroot. Build (or obtain) a Bear linked against a glibc no newer than the
+SDK's. See the project wiki Troubleshooting page (LD_PRELOAD errors) for
+diagnostic commands.
+
 ## Compiler Env Vars With Flags
 
 In wrapper mode, Bear accepts compiler environment variables that carry a

@@ -52,6 +52,19 @@ the dynamic linker rejects the library with "wrong ELF class". This
 produces warning messages but does not prevent the build from
 completing. The cross-compiled commands are not intercepted.
 
+**glibc symbol-version mismatch in cross-compilation** (discussion
+#707): The preload library is linked against the host's glibc. The
+dynamic linker loads it into every intercepted process, including
+compilers that run against a cross-compilation SDK sysroot with an
+older glibc. If the library references a glibc symbol version newer
+than the sysroot's libc provides (e.g. `GLIBC_2.33`), the intercepted
+invocation fails with a "version not found" error and that command is
+not recorded. Unlike the wrong-ELF-class case (a different
+architecture), here the architecture matches and only the glibc
+version differs. Workaround: build Bear on a host whose glibc is no
+newer than the SDK's libc, or distribute a Bear built against a
+compatible glibc alongside the SDK.
+
 **macOS SIP** (issues #108, #152, #232, #360, #558): System Integrity
 Protection strips `DYLD_INSERT_LIBRARIES` for system executables. Bear
 detects SIP at startup via `csrutil status` and falls back to wrapper
