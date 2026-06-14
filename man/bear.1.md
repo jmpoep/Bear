@@ -157,7 +157,7 @@ Controls the command interception method:
 Contains hints about what compiler needs to be recognized and what that compiler is.
 
 - **path**: Path to the compiler executable
-- **as**: Compiler type hint for semantic analysis. Valid values are: `gcc`, `clang`, `flang`, `intel-fortran`, `cray-fortran`, `cuda`, `msvc`, `clang-cl`, `intel_cc`, `nvidia-hpc`, `armclang`, `ibm_xl`.
+- **as**: Compiler type hint for semantic analysis. Valid values are: `gcc`, `clang`, `flang`, `intel-fortran`, `cray-fortran`, `cuda`, `msvc`, `clang-cl`, `intel_cc`, `nvidia-hpc`, `armclang`, `ibm_xl`, `vala`.
 - **ignore**: Whether to ignore this compiler.
 
 The generic compiler names `cc` and `c++` default to GCC semantics. On platforms where these map to a different compiler (macOS, FreeBSD, OpenBSD), use the `as` field to override:
@@ -193,7 +193,7 @@ Output formatting configuration:
   - **canonical**: Resolve to canonical path,
   - **relative**: Make relative to directory field,
   - **absolute**: Convert to absolute path,
-- **entries.use_array_format**: Use arguments array instead of command string
+- **entries.use_array_format**: Use arguments array instead of command string. Note: vala-language-server reads only the command-string form, so set this to `false` for Vala projects (see TROUBLESHOOTING)
 - **entries.include_output_field**: Include output field in entries
 
 ## Default Configuration
@@ -318,6 +318,34 @@ spaces, shell quoting, metacharacters, command substitutions), use
 variables are the portable channel for compilation flags and every build
 system expects them. Bear does not parse or rewrite them; they reach the
 compiler untouched.
+
+## Vala Projects
+
+Bear records `valac` invocations, producing one entry per `.vala` (or
+`.gs`) source. Two things are worth knowing:
+
+- **vala-language-server requires the command-string form.** It reads the
+  `command` field and ignores the `arguments` array, so build the database
+  with the array format disabled:
+
+    ```yaml
+    format:
+      entries:
+        use_array_format: false
+    ```
+
+- **Mixed C and Vala projects.** `valac` transpiles to C and then invokes a
+  C compiler on the generated C, so the database also contains entries for
+  that generated C. A C language server such as clangd indexes every entry
+  and will emit unknown-argument noise on the `valac` entries. Exclude the
+  Vala sources on the clangd side with a `.clangd` file:
+
+    ```yaml
+    If:
+      PathMatch: .*\.vala
+    Diagnostics:
+      Suppress: '*'
+    ```
 
 ## Getting Help
 

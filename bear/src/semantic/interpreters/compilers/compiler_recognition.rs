@@ -303,6 +303,7 @@ fn parse_compiler_type(type_str: &str) -> CompilerType {
         "nvidia_hpc" => CompilerType::NvidiaHpc,
         "armclang" => CompilerType::Armclang,
         "ibm_xl" => CompilerType::IbmXl,
+        "vala" => CompilerType::Vala,
         other => panic!("Unknown compiler type in YAML: '{}'", other),
     }
 }

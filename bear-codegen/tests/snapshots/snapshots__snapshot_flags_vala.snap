@@ -1,0 +1,54 @@
+---
+source: bear-codegen/tests/snapshots.rs
+expression: "generate_flag_file(\"vala\")"
+---
+// Generated from interpreters/vala.yaml -- DO NOT EDIT
+static VALA_FLAGS: [FlagRule; 42] = [
+    FlagRule::new(FlagPattern::ExactlyWithEqOrSep("--internal-header"), ArgumentKind::Other(PassEffect::None)),
+    FlagRule::new(FlagPattern::ExactlyWithEqOrSep("--shared-library"), ArgumentKind::Other(PassEffect::None)),
+    FlagRule::new(FlagPattern::ExactlyWithEqOrSep("--gresourcesdir"), ArgumentKind::Other(PassEffect::Configures(CompilerPass::Compiling))),
+    FlagRule::new(FlagPattern::ExactlyWithEqOrSep("--internal-vapi"), ArgumentKind::Other(PassEffect::None)),
+    FlagRule::new(FlagPattern::ExactlyWithEqOrSep("--use-fast-vapi"), ArgumentKind::Other(PassEffect::None)),
+    FlagRule::new(FlagPattern::ExactlyWithEqOrSep("--metadatadir"), ArgumentKind::Other(PassEffect::Configures(CompilerPass::Compiling))),
+    FlagRule::new(FlagPattern::ExactlyWithEqOrSep("--target-glib"), ArgumentKind::Other(PassEffect::Configures(CompilerPass::Compiling))),
+    FlagRule::new(FlagPattern::ExactlyWithEqOrSep("--gresources"), ArgumentKind::Other(PassEffect::Configures(CompilerPass::Compiling))),
+    FlagRule::new(FlagPattern::ExactlyWithEqOrSep("--includedir"), ArgumentKind::Other(PassEffect::Configures(CompilerPass::Compiling))),
+    FlagRule::new(FlagPattern::ExactlyWithEqOrSep("--pkg-config"), ArgumentKind::Other(PassEffect::None)),
+    FlagRule::new(FlagPattern::ExactlyWithEqOrSep("--directory"), ArgumentKind::Other(PassEffect::None)),
+    FlagRule::new(FlagPattern::ExactlyWithEqOrSep("--fast-vapi"), ArgumentKind::Other(PassEffect::None)),
+    FlagRule::new(FlagPattern::ExactlyWithEqOrSep("--dump-tree"), ArgumentKind::Other(PassEffect::None)),
+    FlagRule::new(FlagPattern::ExactlyWithEqOrSep("--run-args"), ArgumentKind::Other(PassEffect::None)),
+    FlagRule::new(FlagPattern::Exactly("--compile", 0), ArgumentKind::Other(PassEffect::StopsAt(CompilerPass::Compiling))),
+    FlagRule::new(FlagPattern::ExactlyWithEqOrSep("--vapidir"), ArgumentKind::Other(PassEffect::Configures(CompilerPass::Compiling))),
+    FlagRule::new(FlagPattern::ExactlyWithEqOrSep("--basedir"), ArgumentKind::Other(PassEffect::Configures(CompilerPass::Compiling))),
+    FlagRule::new(FlagPattern::ExactlyWithEqOrSep("--library"), ArgumentKind::Other(PassEffect::None)),
+    FlagRule::new(FlagPattern::ExactlyWithEqOrSep("--depfile"), ArgumentKind::Other(PassEffect::None)),
+    FlagRule::new(FlagPattern::ExactlyWithEqOrSep("--symbols"), ArgumentKind::Other(PassEffect::None)),
+    FlagRule::new(FlagPattern::ExactlyWithEqOrSep("--output"), ArgumentKind::Output),
+    FlagRule::new(FlagPattern::ExactlyWithEqOrSep("--define"), ArgumentKind::Other(PassEffect::Configures(CompilerPass::Compiling))),
+    FlagRule::new(FlagPattern::ExactlyWithEqOrSep("--girdir"), ArgumentKind::Other(PassEffect::Configures(CompilerPass::Compiling))),
+    FlagRule::new(FlagPattern::ExactlyWithEqOrSep("--header"), ArgumentKind::Other(PassEffect::None)),
+    FlagRule::new(FlagPattern::Exactly("--ccode", 0), ArgumentKind::Other(PassEffect::StopsAt(CompilerPass::Compiling))),
+    FlagRule::new(FlagPattern::ExactlyWithEqOrSep("--main"), ArgumentKind::Other(PassEffect::Configures(CompilerPass::Compiling))),
+    FlagRule::new(FlagPattern::ExactlyWithEqOrSep("--vapi"), ArgumentKind::Other(PassEffect::None)),
+    FlagRule::new(FlagPattern::ExactlyWithEqOrSep("--deps"), ArgumentKind::Other(PassEffect::None)),
+    FlagRule::new(FlagPattern::ExactlyWithEqOrSep("--pkg"), ArgumentKind::Other(PassEffect::Configures(CompilerPass::Compiling))),
+    FlagRule::new(FlagPattern::Exactly("--Xcc", 1), ArgumentKind::Other(PassEffect::Configures(CompilerPass::Compiling))),
+    FlagRule::new(FlagPattern::ExactlyWithEq("--Xcc"), ArgumentKind::Other(PassEffect::Configures(CompilerPass::Compiling))),
+    FlagRule::new(FlagPattern::ExactlyWithEqOrSep("--gir"), ArgumentKind::Other(PassEffect::None)),
+    FlagRule::new(FlagPattern::ExactlyWithEqOrSep("--cc"), ArgumentKind::Other(PassEffect::None)),
+    FlagRule::new(FlagPattern::ExactlyWithGluedOrSep("-o"), ArgumentKind::Output),
+    FlagRule::new(FlagPattern::Exactly("-C", 0), ArgumentKind::Other(PassEffect::StopsAt(CompilerPass::Compiling))),
+    FlagRule::new(FlagPattern::Exactly("-c", 0), ArgumentKind::Other(PassEffect::StopsAt(CompilerPass::Compiling))),
+    FlagRule::new(FlagPattern::ExactlyWithGluedOrSep("-D"), ArgumentKind::Other(PassEffect::Configures(CompilerPass::Compiling))),
+    FlagRule::new(FlagPattern::ExactlyWithGluedOrSep("-b"), ArgumentKind::Other(PassEffect::Configures(CompilerPass::Compiling))),
+    FlagRule::new(FlagPattern::Exactly("-X", 1), ArgumentKind::Other(PassEffect::Configures(CompilerPass::Compiling))),
+    FlagRule::new(FlagPattern::ExactlyWithGluedOrSep("-d"), ArgumentKind::Other(PassEffect::None)),
+    FlagRule::new(FlagPattern::ExactlyWithGluedOrSep("-H"), ArgumentKind::Other(PassEffect::None)),
+    FlagRule::new(FlagPattern::ExactlyWithGluedOrSep("-h"), ArgumentKind::Other(PassEffect::None)),
+];
+static VALA_IGNORE_EXECUTABLES: [&str; 0] = [];
+static VALA_IGNORE_FLAGS: [&str; 0] = [];
+static VALA_SLASH_PREFIX: bool = false;
+static VALA_ENV_RULES: [EnvRule; 0] = [
+];

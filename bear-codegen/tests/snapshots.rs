@@ -78,6 +78,11 @@ fn snapshot_flags_armclang() {
 }
 
 #[test]
+fn snapshot_flags_vala() {
+    insta::assert_snapshot!(generate_flag_file("vala"));
+}
+
+#[test]
 fn snapshot_recognition() {
     let raw_tables = load_tables().unwrap();
     insta::assert_snapshot!(generate_recognition_patterns(&raw_tables));

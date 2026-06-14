@@ -242,6 +242,7 @@ include!(concat!(env!("OUT_DIR"), "/flags_intel_cc.rs"));
 include!(concat!(env!("OUT_DIR"), "/flags_nvidia_hpc.rs"));
 include!(concat!(env!("OUT_DIR"), "/flags_armclang.rs"));
 include!(concat!(env!("OUT_DIR"), "/flags_ibm_xl.rs"));
+include!(concat!(env!("OUT_DIR"), "/flags_vala.rs"));
 
 /// Factory functions returning opaque interpreters so callers never see concrete types.
 pub(super) fn gcc() -> impl Interpreter {
@@ -364,6 +365,16 @@ pub(super) fn ibm_xl() -> impl Interpreter {
     )
 }
 
+pub(super) fn vala() -> impl Interpreter {
+    FlagBasedInterpreter::new(
+        &VALA_FLAGS,
+        &VALA_IGNORE_EXECUTABLES,
+        &VALA_IGNORE_FLAGS,
+        VALA_SLASH_PREFIX,
+        &VALA_ENV_RULES,
+    )
+}
+
 #[cfg(test)]
 mod flag_table_invariants {
     use super::*;
@@ -476,6 +487,11 @@ mod flag_table_invariants {
     }
 
     #[test]
+    fn vala() {
+        assert_invariants(&VALA_FLAGS);
+    }
+
+    #[test]
     fn clang_inherits_all_gcc_flags() {
         let gcc_flag_strings: std::collections::HashSet<&str> =
             GCC_FLAGS.iter().map(|f| f.pattern.flag()).collect();
@@ -545,6 +561,38 @@ mod pass_through_tests {
         // /OUT:foo.exe (linker arg)
         assert!(
             matches!(result[5], Argument::Other { ref kind, .. } if *kind == ArgumentKind::Other(PassEffect::Configures(CompilerPass::Linking)))
+        );
+    }
+}
+
+#[cfg(test)]
+mod vala_tests {
+    use super::*;
+    use crate::semantic::interpreters::matchers::FlagAnalyzer;
+
+    // `-X` forwards exactly one token to the C compiler, and that token usually
+    // starts with '-' (e.g. `-X -lm`). Because Bear treats any bare argument as
+    // a source file, the danger is that the value leaks in as a phantom source.
+    // `count: 1` must consume it regardless of its leading dash.
+    #[test]
+    fn dash_prefixed_x_value_is_consumed_not_a_source() {
+        let analyzer = FlagAnalyzer::new(&VALA_FLAGS);
+        let mut args = vec!["valac".to_string(), "-X".to_string(), "-lm".to_string(), "foo.vala".to_string()];
+
+        let result = parse_arguments_owned(&analyzer, &mut args, false);
+
+        // valac (compiler), [-X -lm] (one option), foo.vala (the only source)
+        assert_eq!(result.len(), 3, "expected exactly 3 parsed arguments, got {:?}", result);
+        assert!(matches!(result[0], Argument::Other { ref kind, .. } if *kind == ArgumentKind::Compiler));
+        assert!(
+            matches!(&result[1], Argument::Other { arguments, .. } if arguments == &vec!["-X".to_string(), "-lm".to_string()]),
+            "-X must consume -lm as its value, got {:?}",
+            result[1]
+        );
+        assert!(
+            matches!(&result[2], Argument::Source { path, binary } if path == "foo.vala" && !*binary),
+            "foo.vala must be the sole compilable source, got {:?}",
+            result[2]
         );
     }
 }

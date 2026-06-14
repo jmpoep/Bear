@@ -452,6 +452,10 @@ mod test {
         assert_compiler_type_deserializes("\"ibm_xl\"", CompilerType::IbmXl);
         assert_compiler_type_deserializes("\"ibm-xl\"", CompilerType::IbmXl);
         assert_compiler_type_deserializes("\"xlclang\"", CompilerType::IbmXl);
+
+        // Test Vala
+        assert_compiler_type_deserializes("\"vala\"", CompilerType::Vala);
+        assert_compiler_type_deserializes("\"valac\"", CompilerType::Vala);
     }
 
     #[test]
@@ -538,5 +542,6 @@ mod test {
         assert_eq!(CompilerType::NvidiaHpc.to_string(), "NVIDIA HPC");
         assert_eq!(CompilerType::Armclang.to_string(), "ARM Compiler");
         assert_eq!(CompilerType::IbmXl.to_string(), "IBM Open XL");
+        assert_eq!(CompilerType::Vala.to_string(), "Vala");
     }
 }

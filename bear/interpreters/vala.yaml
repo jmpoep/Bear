@@ -1,0 +1,119 @@
+# Vala compiler (valac) flag definitions
+# https://valadoc.org/ -- valac parses GNU/GOption-style options. Every
+# value-taking option accepts both `--opt value` and `--opt=value`; short
+# options also glue (`-ofoo`). Bear treats any bare argument as a source file,
+# so every value-consuming option must appear here, or its separate-token value
+# becomes a phantom source. Boolean flags (--debug, --fatal-warnings, ...) start
+# with `-`/`--` and are auto-classified as non-source, so they need no rules.
+# Likewise --color and --profile are deliberately absent: both are GOption
+# OPTIONAL_ARG callbacks that take their value only when glued (--color=always,
+# --profile=posix), never as a separate token, so a value-consuming rule would
+# wrongly swallow the next argument (e.g. the source file after a bare --profile).
+#
+# valac is a transpiler-driver: it emits C and, unless given -C/--ccode, spawns
+# a real C compiler on the generated C. See docs/rationale/vala-transpiler-database.
+type: vala
+recognize:
+  - executables: ["valac"]
+    cross_compilation: true   # Debian/Ubuntu ship x86_64-linux-gnu-valac
+    versioned: true           # valac-0.56, valac-0.48 (major.minor)
+slash_prefix: false
+flags:
+  # Output and driver stop points
+  - match: {pattern: "-o{ }*"}
+    result: output
+  - match: {pattern: "--output{=}*"}
+    result: output
+  - match: {pattern: "-C"}
+    result: stops_at_compiling
+  - match: {pattern: "--ccode"}
+    result: stops_at_compiling
+  - match: {pattern: "-c"}
+    result: stops_at_compiling
+  - match: {pattern: "--compile"}
+    result: stops_at_compiling
+
+  # Compilation-configuring options that take a value
+  - match: {pattern: "--pkg{=}*"}
+    result: configures_compiling
+  - match: {pattern: "-D{ }*"}
+    result: configures_compiling
+  - match: {pattern: "--define{=}*"}
+    result: configures_compiling
+  - match: {pattern: "--vapidir{=}*"}
+    result: configures_compiling
+  - match: {pattern: "--girdir{=}*"}
+    result: configures_compiling
+  - match: {pattern: "--metadatadir{=}*"}
+    result: configures_compiling
+  - match: {pattern: "--gresources{=}*"}
+    result: configures_compiling
+  - match: {pattern: "--gresourcesdir{=}*"}
+    result: configures_compiling
+  - match: {pattern: "--includedir{=}*"}
+    result: configures_compiling
+  - match: {pattern: "-b{ }*"}
+    result: configures_compiling
+  - match: {pattern: "--basedir{=}*"}
+    result: configures_compiling
+  - match: {pattern: "--target-glib{=}*"}
+    result: configures_compiling
+  - match: {pattern: "--main{=}*"}
+    result: configures_compiling
+
+  # -X / --Xcc forward one token to the downstream C compiler. The token is
+  # ambiguous (could be a compile or a link flag, e.g. `-X -fPIC` vs `-X -lm`)
+  # and often starts with '-', so `count: 1` consumes it unconditionally.
+  # Classify as compile-affecting (not linking) so the forwarded flag is kept
+  # in the entry rather than stripped as link noise -- dropping a compile flag
+  # is worse than keeping a harmless link flag.
+  - match: {pattern: "-X", count: 1}
+    result: configures_compiling
+  - match: {pattern: "--Xcc", count: 1}
+    result: configures_compiling
+  - match: {pattern: "--Xcc=*"}
+    result: configures_compiling
+  # --library / --shared-library set valac's output mode; keep them verbatim.
+  - match: {pattern: "--library{=}*"}
+    result: none
+  - match: {pattern: "--shared-library{=}*"}
+    result: none
+
+  # Value-taking options with no further semantic effect for Bear; listed so
+  # their separate-token value is consumed rather than read as a source file.
+  - match: {pattern: "-d{ }*"}
+    result: none
+  - match: {pattern: "--directory{=}*"}
+    result: none
+  - match: {pattern: "-H{ }*"}
+    result: none
+  - match: {pattern: "--header{=}*"}
+    result: none
+  - match: {pattern: "-h{ }*"}
+    result: none
+  - match: {pattern: "--internal-header{=}*"}
+    result: none
+  - match: {pattern: "--vapi{=}*"}
+    result: none
+  - match: {pattern: "--internal-vapi{=}*"}
+    result: none
+  - match: {pattern: "--gir{=}*"}
+    result: none
+  - match: {pattern: "--fast-vapi{=}*"}
+    result: none
+  - match: {pattern: "--use-fast-vapi{=}*"}
+    result: none
+  - match: {pattern: "--depfile{=}*"}
+    result: none
+  - match: {pattern: "--deps{=}*"}
+    result: none
+  - match: {pattern: "--symbols{=}*"}
+    result: none
+  - match: {pattern: "--cc{=}*"}
+    result: none
+  - match: {pattern: "--pkg-config{=}*"}
+    result: none
+  - match: {pattern: "--dump-tree{=}*"}
+    result: none
+  - match: {pattern: "--run-args{=}*"}
+    result: none

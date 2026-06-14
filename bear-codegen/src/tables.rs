@@ -126,4 +126,13 @@ pub const TABLES: &[TableConfig] = &[
         env_rules_name: "ARMCLANG_ENV_RULES",
         output_file: "flags_armclang.rs",
     },
+    TableConfig {
+        yaml_file: "vala.yaml",
+        static_name: "VALA_FLAGS",
+        ignore_executables_name: "VALA_IGNORE_EXECUTABLES",
+        ignore_flags_name: "VALA_IGNORE_FLAGS",
+        slash_prefix_name: "VALA_SLASH_PREFIX",
+        env_rules_name: "VALA_ENV_RULES",
+        output_file: "flags_vala.rs",
+    },
 ];

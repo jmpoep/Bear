@@ -110,6 +110,8 @@ pub enum CompilerType {
     Armclang,
     #[serde(alias = "ibm_xl", alias = "ibm-xl", alias = "xlclang")]
     IbmXl,
+    #[serde(alias = "vala", alias = "valac")]
+    Vala,
     #[serde(alias = "ccache", alias = "distcc", alias = "sccache")]
     Wrapper,
 }
@@ -129,6 +131,7 @@ impl std::fmt::Display for CompilerType {
             CompilerType::NvidiaHpc => "NVIDIA HPC",
             CompilerType::Armclang => "ARM Compiler",
             CompilerType::IbmXl => "IBM Open XL",
+            CompilerType::Vala => "Vala",
             CompilerType::Wrapper => "Wrapper",
         };
         write!(f, "{}", name)

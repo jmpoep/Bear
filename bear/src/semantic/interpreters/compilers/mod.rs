@@ -47,6 +47,7 @@ impl CompilerInterpreter {
         result.register(CompilerType::NvidiaHpc, flag_based::nvidia_hpc());
         result.register(CompilerType::Armclang, flag_based::armclang());
         result.register(CompilerType::IbmXl, flag_based::ibm_xl());
+        result.register(CompilerType::Vala, flag_based::vala());
 
         result
     }

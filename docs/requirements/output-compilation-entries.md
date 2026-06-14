@@ -203,3 +203,8 @@ Given a build that runs `cc -o a.out src1.c src2.c` with the
 - Related: `output-append`, `output-duplicate-detection`,
   `output-source-directory-filter` -- stages that run on the entries
   produced by this step.
+
+## Rationale
+
+- [Recording Vala (valac) builds](../rationale/vala-transpiler-database.md) -
+  transpiler/internal-cc handling and Vala source extensions.

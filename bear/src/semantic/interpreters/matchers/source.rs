@@ -39,6 +39,8 @@ static SOURCE_EXTENSIONS: std::sync::LazyLock<HashSet<&'static str>> = std::sync
         "d", "di", "dd",
         // Ada
         "ads", "abd",
+        // Vala / Genie (valac translation units; .vapi/.gir are bindings, not TUs)
+        "vala", "gs",
     ])
 });
 
@@ -55,6 +57,12 @@ mod test {
 
         assert!(looks_like_a_source_file("source.h"));
         assert!(looks_like_a_source_file("source.hpp"));
+
+        assert!(looks_like_a_source_file("source.vala"));
+        assert!(looks_like_a_source_file("source.gs"));
+        // .vapi/.gir are bindings consumed by valac, not translation units
+        assert!(!looks_like_a_source_file("gio-2.0.vapi"));
+        assert!(!looks_like_a_source_file("Gtk.gir"));
 
         assert!(!looks_like_a_source_file("gcc"));
         assert!(!looks_like_a_source_file("clang"));

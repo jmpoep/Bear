@@ -689,3 +689,91 @@ fn clang_cl_inherits_msvc_per_warning_options() -> Result<()> {
 
     Ok(())
 }
+
+// Requirements: output-compilation-entries
+//
+// Vala's `valac` is a transpiler-driver: it parses GNU-style (GOption) flags,
+// many of which take a separate-token value (`--pkg gio-2.0`, `--basedir ../src`).
+// Because Bear classifies any bare argument as a source file, an unrecognized
+// value-consuming flag turns its value into a phantom source -- so the single
+// strongest regression guard is that exactly ONE entry (for the `.vala` source)
+// is produced. `bear semantic` runs the interpreter without executing valac, so
+// no Vala toolchain is required and the executable name can be a bare `valac`.
+#[test]
+fn vala_transpile_mode_produces_single_entry() -> Result<()> {
+    let env = TestEnvironment::new("vala_transpile_mode")?;
+
+    let temp_dir = env.test_dir().to_str().unwrap();
+
+    let event = json!({
+        "executable": "valac",
+        "arguments": [
+            "valac", "--pkg", "gio-2.0", "--define=FOO",
+            "-X", "-lm", "--basedir", "../src", "-C", "foo.vala"
+        ],
+        "working_dir": temp_dir,
+        "environment": {}
+    });
+
+    env.create_source_files(&[("events.json", &event.to_string()), ("foo.vala", "void main() { }")])?;
+
+    env.run_bear_success(&["semantic", "--input", "events.json", "--output", "compile_commands.json"])?;
+
+    let db = env.load_compilation_database("compile_commands.json")?;
+    // Exactly one entry: the separate-token values gio-2.0 and ../src did NOT
+    // leak in as their own source entries.
+    db.assert_count(1)?;
+    db.assert_contains(&compilation_entry!(
+        file: "foo.vala".to_string(),
+        directory: temp_dir.to_string(),
+        arguments: vec![
+            "valac".to_string(),
+            "--pkg".to_string(), "gio-2.0".to_string(),
+            "--define=FOO".to_string(),
+            "-X".to_string(), "-lm".to_string(),
+            "--basedir".to_string(), "../src".to_string(),
+            "-C".to_string(),
+            "foo.vala".to_string(),
+        ]
+    ))?;
+
+    Ok(())
+}
+
+// Requirements: output-compilation-entries
+//
+// The default (non-`-C`) driver mode still yields one entry for the `.vala`
+// source. The internal C-compiler invocation that valac spawns at build time
+// is a separate process and is not part of a `semantic`-mode events file, so it
+// is out of scope here (see docs/rationale/vala-transpiler-database).
+#[test]
+fn vala_default_mode_produces_single_entry() -> Result<()> {
+    let env = TestEnvironment::new("vala_default_mode")?;
+
+    let temp_dir = env.test_dir().to_str().unwrap();
+
+    let event = json!({
+        "executable": "valac",
+        "arguments": ["valac", "--pkg", "gio-2.0", "foo.vala"],
+        "working_dir": temp_dir,
+        "environment": {}
+    });
+
+    env.create_source_files(&[("events.json", &event.to_string()), ("foo.vala", "void main() { }")])?;
+
+    env.run_bear_success(&["semantic", "--input", "events.json", "--output", "compile_commands.json"])?;
+
+    let db = env.load_compilation_database("compile_commands.json")?;
+    db.assert_count(1)?;
+    db.assert_contains(&compilation_entry!(
+        file: "foo.vala".to_string(),
+        directory: temp_dir.to_string(),
+        arguments: vec![
+            "valac".to_string(),
+            "--pkg".to_string(), "gio-2.0".to_string(),
+            "foo.vala".to_string(),
+        ]
+    ))?;
+
+    Ok(())
+}

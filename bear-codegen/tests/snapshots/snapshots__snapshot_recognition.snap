@@ -21,4 +21,5 @@ pub static RECOGNITION_PATTERNS: &[(&str, &[&str], bool, bool)] = &[
     ("nvidia_hpc", &["nvc", "nvc++", "nvfortran"], false, true),
     ("nvidia_hpc", &["pgcc", "pgc++", "pgfortran"], false, true),
     ("armclang", &["armclang", "armclang++"], false, true),
+    ("vala", &["valac"], true, true),
 ];
