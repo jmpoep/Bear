@@ -210,10 +210,12 @@ extend GCC and will have an empty environment table.
 
 1. Create a new YAML file in this directory (e.g., `mycompiler.yaml`)
 2. Add `type:`, `recognize:`, `flags:` entries and optionally `extends:`, `ignore_when:`, `environment:`
-3. Add a `TableConfig` entry in `bear/build.rs`
-4. Add a `CompilerType` variant in `config.rs` and a mapping in
-   `compiler_recognition.rs::parse_compiler_type`
-5. Register the `FlagBasedInterpreter` in `CompilerInterpreter::new_with_config`
+3. Add a `TableConfig` entry in `bear-codegen/src/tables.rs`
+4. Add a `CompilerType` variant in `bear/src/config/types.rs` and a mapping in
+   `bear/src/semantic/interpreters/compilers/compiler_recognition.rs::parse_compiler_type`
+5. Add a constructor in `flag_based.rs` and register it in
+   `CompilerInterpreter::new_with_config`
+   (`bear/src/semantic/interpreters/compilers/mod.rs`)
 6. Run `cargo build && cargo test`
 
 ## Adding a new flag
