@@ -11,7 +11,7 @@
 //! - Providing error types for initialization and reporting.
 //! - Implementing a factory to create TCP-based reporters.
 
-use crate::intercept::{Execution, tcp};
+use crate::{Execution, tcp};
 use std::net::SocketAddr;
 use thiserror::Error;
 

@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use crate::args::BuildCommand;
-use crate::intercept;
-use crate::intercept::reporter::ReporterError;
-use crate::intercept::supervise::SuperviseError;
+use crate::environment::execution_from_build_command;
 use crate::output::WriterError;
 use crossbeam_channel::{Receiver, bounded, unbounded};
+use intercept::reporter::ReporterError;
+use intercept::supervise::SuperviseError;
 use std::process::{ExitCode, ExitStatus};
 use std::sync::Arc;
 use thiserror::Error;
@@ -132,7 +132,7 @@ impl Interceptor {
         let (sender, receiver) = unbounded::<intercept::Execution>();
 
         // Inject the initial command as the first execution
-        let _ = sender.send((&command).into());
+        let _ = sender.send(execution_from_build_command(&command));
 
         let producer_thread = {
             let producer = Arc::clone(&self.producer);
@@ -239,8 +239,8 @@ pub enum RuntimeError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::intercept::Execution;
     use crate::output::{SerializationError, WriterError};
+    use intercept::Execution;
     use std::collections::HashMap;
     use std::sync::{Arc, Mutex};
     use std::time::Duration;

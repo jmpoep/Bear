@@ -24,6 +24,7 @@ name = "bear-wrapper"
 path = "src/bin/wrapper.rs"
 
 [dependencies]
+intercept = { path = "../intercept" }
 thiserror.workspace = true
 anyhow.workspace = true
 serde.workspace = true

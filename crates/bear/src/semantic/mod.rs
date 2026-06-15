@@ -32,7 +32,7 @@ pub mod interpreters;
 #[cfg(test)]
 pub mod testing;
 
-use super::intercept::Execution;
+use intercept::Execution;
 use interpreters::matchers::looks_like_a_source_file;
 
 use std::borrow::Cow;

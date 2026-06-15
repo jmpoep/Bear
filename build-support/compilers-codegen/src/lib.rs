@@ -162,6 +162,21 @@ pub fn generate(flags_dir: &Path, out_dir: &Path) -> Result<()> {
     Ok(())
 }
 
+/// Generate only the combined environment variable keys.
+///
+/// Used by the `intercept` crate, which needs `COMPILER_ENV_KEYS` for its
+/// agent-side environment filtering but none of the flag tables or recognition
+/// patterns. Reads `*.yaml` from `flags_dir` and writes `env_keys.rs` into
+/// `out_dir`.
+///
+/// Prints `cargo:rerun-if-changed` lines to stdout (for build.rs integration).
+pub fn generate_env_keys_only(flags_dir: &Path, out_dir: &Path) -> Result<()> {
+    let raw_tables = load_tables_from(flags_dir)?;
+    let env_keys = generate_env_keys(&raw_tables);
+    write_output(out_dir, "env_keys.rs", env_keys)?;
+    Ok(())
+}
+
 /// Load YAML flag tables from a directory, printing cargo:rerun-if-changed.
 fn load_tables_from(flags_dir: &Path) -> Result<HashMap<String, FlagTable>> {
     let mut raw_tables = HashMap::new();

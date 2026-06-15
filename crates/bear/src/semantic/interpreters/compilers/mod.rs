@@ -14,8 +14,8 @@ mod wrapper;
 use super::super::{Interpreter, RecognizeResult};
 use super::combinators::OutputLogger;
 use crate::config::CompilerType;
-use crate::intercept::Execution;
 use compiler_recognition::CompilerRecognizer;
+use intercept::Execution;
 use std::collections::HashMap;
 
 /// Main compiler interpreter that delegates to specific compiler implementations.

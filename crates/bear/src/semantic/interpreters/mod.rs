@@ -54,8 +54,8 @@ mod test {
 
     use super::*;
     use crate::config;
-    use crate::intercept::Execution;
     use crate::semantic::RecognizeResult;
+    use intercept::Execution;
 
     #[test]
     fn test_create_interpreter_with_default_config() {

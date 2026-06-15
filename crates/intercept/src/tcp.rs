@@ -2,8 +2,8 @@
 
 //! The module contains the implementation of the TCP collector and reporter.
 
-use super::Execution;
-use super::reporter::{Reporter, ReporterError};
+use crate::Execution;
+use crate::reporter::{Reporter, ReporterError};
 use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::sync::Arc;

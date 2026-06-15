@@ -2,8 +2,8 @@
 
 //! Executable path resolution for intercepted commands.
 
-use crate::intercept::Execution;
 use crate::semantic::{Interpreter, RecognizeResult};
+use intercept::Execution;
 use std::path::{Path, PathBuf};
 
 /// Resolves bare executable filenames to absolute paths.

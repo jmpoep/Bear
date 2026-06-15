@@ -214,7 +214,7 @@ mod caching_tests {
 mod unix {
     use super::CompilerProbe;
     use crate::config::CompilerType;
-    use crate::environment::{KEY_OS__MACOS_PRELOAD_PATH, KEY_OS__PRELOAD_PATH};
+    use intercept::environment::{KEY_OS__MACOS_PRELOAD_PATH, KEY_OS__PRELOAD_PATH};
     use std::os::unix::process::CommandExt;
     use std::path::Path;
     use std::process::{Command, Stdio};

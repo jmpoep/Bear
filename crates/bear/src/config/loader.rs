@@ -16,7 +16,10 @@ impl Loader {
     /// will be searched for the configuration file. If the configuration file is not found, the
     /// default configuration will be returned.
     #[allow(clippy::result_large_err)] // Config loading runs once at startup.
-    pub fn load(context: &crate::context::Context, filename: &Option<String>) -> Result<Main, ConfigError> {
+    pub fn load(
+        context: &intercept::context::Context,
+        filename: &Option<String>,
+    ) -> Result<Main, ConfigError> {
         if let Some(path) = filename {
             // If the configuration file is specified, use it.
             Self::from_file(Path::new(path))
@@ -50,7 +53,7 @@ impl Loader {
     ///
     /// Each directory is probed for a `bear.yml` file. The first existing file
     /// is used; remaining locations are not consulted.
-    fn file_locations(context: &crate::context::Context) -> Vec<PathBuf> {
+    fn file_locations(context: &intercept::context::Context) -> Vec<PathBuf> {
         let mut locations: Vec<PathBuf> = Vec::new();
 
         locations.push(context.current_directory.clone().join("bear.yml"));

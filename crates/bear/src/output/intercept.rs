@@ -9,7 +9,6 @@
 //! The output format is not stable and may change in future versions.
 
 use super::{SerializationError, SerializationFormat};
-use crate::intercept;
 use serde_json::StreamDeserializer;
 use serde_json::de::IoRead;
 
@@ -41,7 +40,7 @@ impl SerializationFormat<intercept::Execution> for ExecutionEventDatabase {
 mod tests {
     use super::ExecutionEventDatabase as Sut;
     use super::SerializationFormat;
-    use crate::intercept::Execution;
+    use intercept::Execution;
     use serde_json::json;
     use std::collections::HashMap;
     use std::io::{Cursor, Seek, SeekFrom};

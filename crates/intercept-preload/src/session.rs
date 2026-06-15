@@ -37,12 +37,12 @@ use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::OnceLock;
 
-use bear::environment::KEY_INTERCEPT_STATE;
+use intercept::environment::KEY_INTERCEPT_STATE;
 #[cfg(not(target_os = "macos"))]
-use bear::environment::KEY_OS__PRELOAD_PATH;
+use intercept::environment::KEY_OS__PRELOAD_PATH;
+use intercept::environment::PreloadState;
 #[cfg(target_os = "macos")]
-use bear::environment::{KEY_OS__MACOS_FLAT_NAMESPACE, KEY_OS__MACOS_PRELOAD_PATH};
-use bear::intercept::environment::PreloadState;
+use intercept::environment::{KEY_OS__MACOS_FLAT_NAMESPACE, KEY_OS__MACOS_PRELOAD_PATH};
 use libc::{c_char, c_int};
 
 /// The preload environment variable key for the current platform.
@@ -216,7 +216,7 @@ pub fn desired_preload_value(ctx: &SessionContext, current: Option<&str>) -> Res
             }
         }
     };
-    bear::intercept::environment::insert_to_path(&base, &ctx.state.library).map_err(|_| libc::EINVAL)
+    intercept::environment::insert_to_path(&base, &ctx.state.library).map_err(|_| libc::EINVAL)
 }
 
 /// A doctored environment that owns its strings and can provide a C-style envp.
@@ -344,7 +344,7 @@ mod tests {
     use std::net::{IpAddr, Ipv4Addr, SocketAddr};
     use std::path::PathBuf;
 
-    use bear::intercept::environment::PreloadState;
+    use intercept::environment::PreloadState;
 
     /// Default test destination address (localhost:12345).
     const TEST_DESTINATION: SocketAddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 12345);

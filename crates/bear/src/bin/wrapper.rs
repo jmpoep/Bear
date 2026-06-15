@@ -16,10 +16,10 @@
 //! executable and then calls the real executable with the same arguments.
 
 use anyhow::{Context, Result};
-use bear::intercept::Execution;
-use bear::intercept::reporter::{Reporter, ReporterFactory};
-use bear::intercept::supervise::supervise_execution;
-use bear::intercept::wrapper::{CONFIG_FILENAME, WrapperConfig, WrapperConfigReader};
+use intercept::Execution;
+use intercept::reporter::{Reporter, ReporterFactory};
+use intercept::supervise::supervise_execution;
+use intercept::wrapper::{CONFIG_FILENAME, WrapperConfig, WrapperConfigReader};
 use std::io::Write;
 
 /// Implementation of the wrapper process.

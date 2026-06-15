@@ -16,7 +16,7 @@ path = "src/lib.rs"
 crate-type = ["rlib", "cdylib"]
 
 [dependencies]
-bear = { path = "../bear" }
+intercept = { path = "../intercept" }
 thiserror.workspace = true
 log.workspace = true
 env_logger.workspace = true

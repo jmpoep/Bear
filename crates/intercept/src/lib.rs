@@ -40,19 +40,19 @@
 //! ## Normalization
 //!
 //! Bare executable filenames from `p`-variant interceptions are resolved to
-//! absolute paths by the [`ResolveExecutable`] interpreter decorator in the
-//! semantic analysis layer. It uses the execution's own `PATH` environment
-//! variable, falling back to the system default from `confstr(_CS_PATH)`.
-//!
-//! [`ResolveExecutable`]: crate::semantic::interpreters::resolve::ResolveExecutable
+//! absolute paths by the `ResolveExecutable` interpreter decorator in the
+//! semantic analysis layer (in the `bear` crate). It uses the execution's own
+//! `PATH` environment variable, falling back to the system default from
+//! `confstr(_CS_PATH)`.
 
+pub mod context;
 pub mod environment;
+pub mod installation;
 pub mod reporter;
 pub mod supervise;
 pub mod tcp;
 pub mod wrapper;
 
-use crate::args::BuildCommand;
 use crate::environment::relevant_env;
 use std::collections::HashMap;
 use std::fmt;
@@ -107,7 +107,12 @@ impl Execution {
         Self { environment, ..self }
     }
 
-    #[cfg(test)]
+    /// Builds an `Execution` from string slices.
+    ///
+    /// A convenience constructor used by tests in this crate and in `bear`.
+    /// It is not `#[cfg(test)]`-gated because the gate would only apply when
+    /// `intercept` itself is compiled for test, leaving it unavailable to
+    /// `bear`'s tests across the crate boundary.
     pub fn from_strings(
         executable: &str,
         arguments: Vec<&str>,
@@ -136,26 +141,6 @@ pub enum CaptureError {
     CurrentExecutable(std::io::Error),
     #[error("Failed to capture current directory: {0}")]
     CurrentDirectory(std::io::Error),
-}
-
-impl From<&BuildCommand> for Execution {
-    /// Creates an execution from a build command with automatic environment trimming.
-    ///
-    /// The working directory is obtained from the current process, and environment
-    /// variables are filtered to include only those relevant for compilation
-    /// database generation.
-    fn from(command: &BuildCommand) -> Self {
-        let working_dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-        let environment = std::env::vars().collect();
-
-        Execution {
-            executable: PathBuf::from(&command.arguments[0]),
-            arguments: command.arguments.clone(),
-            working_dir,
-            environment,
-        }
-        .trim()
-    }
 }
 
 #[cfg(test)]

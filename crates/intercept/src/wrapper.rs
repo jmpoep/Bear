@@ -182,7 +182,7 @@ impl WrapperConfigWriter {
 /// The use of a deterministic directory path is essential for autotools-style builds
 /// where `./configure` caches compiler paths. Using a random temporary directory
 /// would break subsequent `make` invocations because the cached paths would no longer exist.
-pub(super) struct WrapperDirectoryBuilder {
+pub struct WrapperDirectoryBuilder {
     wrapper_executable_path: PathBuf,
     wrapper_dir: ManagedDirectory,
     config: WrapperConfig,
@@ -283,8 +283,12 @@ impl WrapperDirectory {
         self.wrapper_dir.path()
     }
 
-    /// Gets the wrapper config (only available in tests).
-    #[cfg(test)]
+    /// Gets the wrapper config.
+    ///
+    /// Used by tests in this crate and in `bear`. Not `#[cfg(test)]`-gated
+    /// because the gate would only apply when `intercept` itself is compiled
+    /// for test, leaving it unavailable to `bear`'s tests across the crate
+    /// boundary.
     pub fn config(&self) -> &WrapperConfig {
         &self._config
     }

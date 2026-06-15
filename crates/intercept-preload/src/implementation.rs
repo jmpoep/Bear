@@ -29,10 +29,10 @@ use std::ptr;
 use std::sync::OnceLock;
 use std::sync::atomic::{AtomicPtr, Ordering};
 
-use bear::intercept::Execution;
-use bear::intercept::reporter::{Reporter, ReporterFactory};
-use bear::intercept::tcp::ReporterOnTcp;
 use ctor::ctor;
+use intercept::Execution;
+use intercept::reporter::{Reporter, ReporterFactory};
+use intercept::tcp::ReporterOnTcp;
 use libc::{RTLD_NEXT, c_char, c_int, pid_t, posix_spawn_file_actions_t, posix_spawnattr_t};
 
 use crate::session::{DoctoredEnvironment, SESSION_CTX, in_session, init_session_from_envp};

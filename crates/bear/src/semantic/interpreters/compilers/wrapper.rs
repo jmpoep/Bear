@@ -15,7 +15,7 @@
 
 use super::compiler_recognition::CompilerRecognizer;
 use crate::config::CompilerType;
-use crate::intercept::Execution;
+use intercept::Execution;
 
 use std::path::{Path, PathBuf};
 

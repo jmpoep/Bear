@@ -103,6 +103,7 @@ dependencies = [
  "compilers-codegen",
  "crossbeam-channel",
  "env_logger",
+ "intercept",
  "libc",
  "log",
  "mockall",
@@ -569,14 +570,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "intercept"
+version = "4.1.5"
+dependencies = [
+ "compilers-codegen",
+ "libc",
+ "log",
+ "serde",
+ "serde_json",
+ "signal-hook",
+ "tempfile",
+ "thiserror",
+]
+
+[[package]]
 name = "intercept-preload"
 version = "4.1.5"
 dependencies = [
- "bear",
  "cc",
  "ctor",
  "env_logger",
  "errno",
+ "intercept",
  "libc",
  "log",
  "platform-checks",

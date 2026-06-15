@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-use crate::intercept::Execution;
+use crate::Execution;
 use std::path::PathBuf;
 use std::process::ExitStatus;
 use std::sync::Arc;

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-use bear::{args, config, context, installation, modes};
+use bear::{args, config, modes};
+use intercept::{context, installation};
 use std::env;
 use std::process::ExitCode;
 
