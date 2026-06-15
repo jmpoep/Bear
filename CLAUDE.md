@@ -26,11 +26,12 @@ It intercepts compiler invocations during a build and records them.
 
 | Crate | Purpose |
 |---|---|
-| `bear` | Main driver, CLI, semantic analysis, output |
-| `intercept-preload` | `LD_PRELOAD` / `DYLD_INSERT_LIBRARIES` shared library |
-| `platform-checks` | Build-time platform capability detection |
-| `bear-codegen` | Code generator for compiler flag tables |
-| `integration-tests` | End-to-end tests |
+| `crates/bear` | Main driver, CLI, semantic analysis, output |
+| `crates/intercept-preload` | `LD_PRELOAD` / `DYLD_INSERT_LIBRARIES` shared library |
+| `crates/bear-completions` | Shell-completion script generator |
+| `build-support/platform-checks` | Build-time platform capability detection |
+| `build-support/compilers-codegen` | Code generator for compiler flag tables |
+| `tests/integration` | End-to-end tests (package `integration-tests`) |
 
 ## Routing - read before modifying
 
@@ -39,13 +40,13 @@ These files contain rules, context, and constraints specific to that area.
 
 | When you are about to... | Read first |
 |---|---|
-| Modify CLI arguments or output format | `bear/CLAUDE.md` |
-| Edit or add compiler interpreter YAML | `bear/compilers/CLAUDE.md` |
-| Edit the YAML-to-Rust code generator | `bear-codegen/CLAUDE.md` |
-| Add or change a host capability probe | `platform-checks/CLAUDE.md` |
-| Touch the preload interception library | `intercept-preload/CLAUDE.md` |
-| Touch the shell-completions binary | `bear-completions/CLAUDE.md` |
-| Write or modify integration tests | `integration-tests/CLAUDE.md` |
+| Modify CLI arguments or output format | `crates/bear/CLAUDE.md` |
+| Edit or add compiler interpreter YAML | `crates/bear/compilers/CLAUDE.md` |
+| Edit the YAML-to-Rust code generator | `build-support/compilers-codegen/CLAUDE.md` |
+| Add or change a host capability probe | `build-support/platform-checks/CLAUDE.md` |
+| Touch the preload interception library | `crates/intercept-preload/CLAUDE.md` |
+| Touch the shell-completions binary | `crates/bear-completions/CLAUDE.md` |
+| Write or modify integration tests | `tests/integration/CLAUDE.md` |
 | Edit or regenerate the man page | `man/CLAUDE.md` |
 | Find project documentation or how it is organized | `docs/CLAUDE.md` |
 | Add, modify, or review a requirement (contract) | `docs/requirements/CLAUDE.md` |
@@ -65,19 +66,19 @@ Do not skip these reads. They contain constraints that prevent regressions.
 
 The workspace builds in three layers before linking the user-facing binaries:
 
-1. `bear-codegen` runs from `bear/build.rs` to emit interpreter tables.
-   See `bear-codegen/CLAUDE.md`.
-2. `platform-checks/build.rs` probes the host once for headers and
-   symbols. Consumers replay the results via
+1. `compilers-codegen` runs from `crates/bear/build.rs` to emit interpreter
+   tables. See `build-support/compilers-codegen/CLAUDE.md`.
+2. `build-support/platform-checks/build.rs` probes the host once for headers
+   and symbols. Consumers replay the results via
    `platform_checks::emit_cfg()` / `emit_check_cfg()`. See
-   `platform-checks/CLAUDE.md`.
-3. `intercept-preload/build.rs` cc-compiles `src/c/shim.c` and emits
-   cdylib link directives. See `intercept-preload/CLAUDE.md`.
+   `build-support/platform-checks/CLAUDE.md`.
+3. `crates/intercept-preload/build.rs` cc-compiles `src/c/shim.c` and emits
+   cdylib link directives. See `crates/intercept-preload/CLAUDE.md`.
 
 `INTERCEPT_LIBDIR` is the one cross-cutting build-time env var
 (relative path to the install location of `libexec.so` /
 `libexec.dylib`; defaults to `lib`). Validated and forwarded by both
-`bear/build.rs` and `integration-tests/build.rs`.
+`crates/bear/build.rs` and `tests/integration/build.rs`.
 
 ## Host requirements
 

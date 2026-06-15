@@ -9,8 +9,8 @@ edition.workspace = true
 publish = false
 
 [dev-dependencies]
-bear = { path = "../bear" }
-intercept-preload = { path = "../intercept-preload" }
+bear = { path = "../../crates/bear" }
+intercept-preload = { path = "../../crates/intercept-preload" }
 tempfile.workspace = true
 anyhow.workspace = true
 assert_cmd.workspace = true
@@ -23,7 +23,7 @@ which.workspace = true
 encoding_rs.workspace = true
 
 [build-dependencies]
-platform-checks = { path = "../platform-checks" }
+platform-checks = { path = "../../build-support/platform-checks" }
 which.workspace = true
 
 [[test]]

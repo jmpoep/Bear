@@ -6,10 +6,10 @@
 //! compares it against a stored snapshot. Any change in YAML or codegen
 //! logic is caught as a snapshot diff.
 
-use bear_codegen::env_keys::generate_env_keys;
-use bear_codegen::recognition::generate_recognition_patterns;
-use bear_codegen::tables::TABLES;
-use bear_codegen::{ResolvedTable, load_tables};
+use compilers_codegen::env_keys::generate_env_keys;
+use compilers_codegen::recognition::generate_recognition_patterns;
+use compilers_codegen::tables::TABLES;
+use compilers_codegen::{ResolvedTable, load_tables};
 
 fn generate_flag_file(yaml_stem: &str) -> String {
     let raw_tables = load_tables().unwrap();

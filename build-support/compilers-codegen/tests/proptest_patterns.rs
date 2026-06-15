@@ -2,8 +2,8 @@
 
 //! Property-based tests for pattern_to_rust and FlagMatch::name_len.
 
-use bear_codegen::codegen::pattern_to_rust;
-use bear_codegen::yaml_types::FlagMatch;
+use compilers_codegen::codegen::pattern_to_rust;
+use compilers_codegen::yaml_types::FlagMatch;
 use proptest::prelude::*;
 
 /// Strategy for generating flag name strings (e.g., "-I", "--std", "/Fo").

@@ -37,12 +37,13 @@ fn main() {
     println!("cargo:rustc-env=INTERCEPT_LIBDIR={}", intercept_libdir);
 
     // Re-run if bear or intercept-preload artifacts change
-    println!("cargo:rerun-if-changed=../bear/src");
-    println!("cargo:rerun-if-changed=../intercept-preload/src");
+    println!("cargo:rerun-if-changed=../../crates/bear/src");
+    println!("cargo:rerun-if-changed=../../crates/intercept-preload/src");
 
-    // Locate install script and repo root for integration tests
+    // Locate install script and repo root for integration tests.
+    // CARGO_MANIFEST_DIR is <root>/tests/integration, two levels below root.
     let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
-    let repo_root = std::path::Path::new(&manifest_dir).parent().unwrap();
+    let repo_root = std::path::Path::new(&manifest_dir).ancestors().nth(2).unwrap();
     let install_script = repo_root.join("scripts").join("install.sh");
     println!("cargo:rerun-if-changed={}", install_script.display());
     println!("cargo:rustc-env=REPO_ROOT={}", repo_root.display());

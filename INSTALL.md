@@ -165,7 +165,7 @@ If you are a package maintainer for a distribution:
 
 - The preload library (`libexec.so`) is only built on Unix. Windows builds
   only produce `bear-driver` and `bear-wrapper`. Consult
-  `intercept-preload/build.rs` for details.
+  `crates/intercept-preload/build.rs` for details.
 
 - `bear-driver` locates its siblings using relative paths:
   `./bear-wrapper` and `../$INTERCEPT_LIBDIR/libexec.so`. The `bear` entry

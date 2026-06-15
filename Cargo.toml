@@ -1,14 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 [workspace]
-members = [
-  "bear-codegen",
-  "bear-completions",
-  "platform-checks",
-  "bear",
-  "intercept-preload",
-  "integration-tests",
-]
+members = ["crates/*", "build-support/*", "tests/*"]
 resolver = "3"
 
 [workspace.package]

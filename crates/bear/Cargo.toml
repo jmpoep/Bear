@@ -40,7 +40,7 @@ which.workspace = true
 libc.workspace = true
 
 [build-dependencies]
-bear-codegen = { path = "../bear-codegen" }
+compilers-codegen = { path = "../../build-support/compilers-codegen" }
 
 [dev-dependencies]
 tempfile.workspace = true

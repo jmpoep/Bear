@@ -5,10 +5,10 @@
 //! These tests validate all YAML compiler definitions at test time,
 //! providing better error messages than build-time panics.
 
-use bear_codegen::codegen::{pattern_to_rust, result_to_rust};
-use bear_codegen::load_tables;
-use bear_codegen::resolve::resolve_environment;
-use bear_codegen::tables::TABLES;
+use compilers_codegen::codegen::{pattern_to_rust, result_to_rust};
+use compilers_codegen::load_tables;
+use compilers_codegen::resolve::resolve_environment;
+use compilers_codegen::tables::TABLES;
 
 /// Every YAML file parses successfully.
 #[test]

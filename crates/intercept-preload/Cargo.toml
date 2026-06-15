@@ -27,7 +27,7 @@ libc.workspace = true
 errno.workspace = true
 
 [build-dependencies]
-platform-checks = { path = "../platform-checks" }
+platform-checks = { path = "../../build-support/platform-checks" }
 cc.workspace = true
 
 [dev-dependencies]
