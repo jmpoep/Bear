@@ -45,13 +45,10 @@
 //! `PATH` environment variable, falling back to the system default from
 //! `confstr(_CS_PATH)`.
 
-pub mod context;
 pub mod environment;
-pub mod installation;
 pub mod reporter;
-pub mod supervise;
+pub mod state;
 pub mod tcp;
-pub mod wrapper;
 
 use crate::environment::relevant_env;
 use std::collections::HashMap;

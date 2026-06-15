@@ -40,9 +40,9 @@ use std::sync::OnceLock;
 use intercept::environment::KEY_INTERCEPT_STATE;
 #[cfg(not(target_os = "macos"))]
 use intercept::environment::KEY_OS__PRELOAD_PATH;
-use intercept::environment::PreloadState;
 #[cfg(target_os = "macos")]
 use intercept::environment::{KEY_OS__MACOS_FLAT_NAMESPACE, KEY_OS__MACOS_PRELOAD_PATH};
+use intercept::state::PreloadState;
 use libc::{c_char, c_int};
 
 /// The preload environment variable key for the current platform.
@@ -344,7 +344,7 @@ mod tests {
     use std::net::{IpAddr, Ipv4Addr, SocketAddr};
     use std::path::PathBuf;
 
-    use intercept::environment::PreloadState;
+    use intercept::state::PreloadState;
 
     /// Default test destination address (localhost:12345).
     const TEST_DESTINATION: SocketAddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 12345);

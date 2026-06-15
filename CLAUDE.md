@@ -27,6 +27,8 @@ It intercepts compiler invocations during a build and records them.
 | Crate | Purpose |
 |---|---|
 | `crates/bear` | Main driver, CLI, semantic analysis, output |
+| `crates/intercept` | Shared/agent-side interception runtime (Execution, reporter, wire, env helpers) |
+| `crates/intercept-supervisor` | Driver-side interception (supervise, TCP collector, build environment) |
 | `crates/intercept-preload` | `LD_PRELOAD` / `DYLD_INSERT_LIBRARIES` shared library |
 | `crates/bear-completions` | Shell-completion script generator |
 | `build-support/platform-checks` | Build-time platform capability detection |

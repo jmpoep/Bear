@@ -18,8 +18,8 @@
 use anyhow::{Context, Result};
 use intercept::Execution;
 use intercept::reporter::{Reporter, ReporterFactory};
-use intercept::supervise::supervise_execution;
-use intercept::wrapper::{CONFIG_FILENAME, WrapperConfig, WrapperConfigReader};
+use intercept_supervisor::supervise::supervise_execution;
+use intercept_supervisor::wrapper::{CONFIG_FILENAME, WrapperConfig, WrapperConfigReader};
 use std::io::Write;
 
 /// Implementation of the wrapper process.

@@ -17,6 +17,7 @@ path = "src/lib.rs"
 
 [dependencies]
 intercept = { path = "../intercept" }
+intercept-supervisor = { path = "../intercept-supervisor" }
 thiserror.workspace = true
 serde.workspace = true
 serde_json.workspace = true

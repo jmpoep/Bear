@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 [package]
-name = "intercept"
-description = "Shared interception runtime for Bear (reporter, collector, wrapper, environment)."
+name = "intercept-supervisor"
+description = "Driver-side (supervisor) half of Bear's interception runtime (supervise, collector, build environment)."
 version.workspace = true
 authors.workspace = true
 repository.workspace = true
@@ -11,20 +11,20 @@ license.workspace = true
 edition.workspace = true
 
 [lib]
-name = "intercept"
+name = "intercept_supervisor"
 path = "src/lib.rs"
 
 [dependencies]
+intercept = { path = "../intercept" }
 thiserror.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 log.workspace = true
+signal-hook.workspace = true
+which.workspace = true
 
 [target.'cfg(unix)'.dependencies]
 libc.workspace = true
-
-[build-dependencies]
-compilers-codegen = { path = "../../build-support/compilers-codegen" }
 
 [dev-dependencies]
 tempfile.workspace = true

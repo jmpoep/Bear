@@ -2,7 +2,6 @@
 
 use std::collections::HashSet;
 use std::env::JoinPathsError;
-use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 
 pub const KEY_INTERCEPT_STATE: &str = "BEAR_INTERCEPT";
@@ -97,7 +96,7 @@ static CARGO_PROGRAM_KEYS: std::sync::LazyLock<HashSet<&'static str>> = std::syn
 static CARGO_FLAGS_KEYS: std::sync::LazyLock<HashSet<&'static str>> =
     std::sync::LazyLock::new(|| [KEY_CARGO__RUSTFLAGS].iter().cloned().collect());
 
-pub(crate) fn relevant_env(key: &str) -> bool {
+pub fn relevant_env(key: &str) -> bool {
     matches!(key, KEY_INTERCEPT_STATE | KEY_OS__PRELOAD_PATH | KEY_OS__MACOS_PRELOAD_PATH | KEY_OS__MACOS_FLAT_NAMESPACE)
         || MAKE_PROGRAM_KEYS.contains(key)
         || MAKE_FLAGS_KEYS.contains(key)
@@ -110,42 +109,6 @@ pub(crate) fn relevant_env(key: &str) -> bool {
 
 pub fn program_env(key: &str) -> bool {
     MAKE_PROGRAM_KEYS.contains(key) || CARGO_PROGRAM_KEYS.contains(key)
-}
-
-/// Represents the state information needed for preload-based interception.
-///
-/// This struct is serialized to JSON and passed to the preloaded library via
-/// an environment variable. It contains all the information the library needs
-/// to report execution events back to the Bear process.
-#[derive(Clone, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
-pub struct PreloadState {
-    /// The socket address where execution events should be reported
-    pub destination: SocketAddr,
-    /// The path to the preload library itself
-    pub library: PathBuf,
-}
-
-impl TryInto<String> for PreloadState {
-    type Error = serde_json::Error;
-
-    fn try_into(self) -> Result<String, Self::Error> {
-        serde_json::to_string(&self)
-    }
-}
-impl TryFrom<&str> for PreloadState {
-    type Error = serde_json::Error;
-
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
-        serde_json::from_str(value)
-    }
-}
-
-impl TryFrom<String> for PreloadState {
-    type Error = serde_json::Error;
-
-    fn try_from(value: String) -> Result<Self, Self::Error> {
-        serde_json::from_str(&value)
-    }
 }
 
 /// Manipulates a `PATH`-like environment variable by inserting a path at the beginning.
@@ -182,4 +145,123 @@ pub fn insert_to_path<P: AsRef<Path>>(original: &str, first: P) -> Result<String
         std::env::split_paths(original).filter(|path| path.as_path() != first_path).collect();
     paths.insert(0, first_path.to_owned());
     std::env::join_paths(paths).map(|os_string| os_string.into_string().unwrap_or_default())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    /// Assert that the first entry in a path-like string equals the expected value.
+    /// Works for PATH, LD_PRELOAD, or any path-separated environment variable.
+    fn assert_first_path_entry(expected: &str, path_like: &str) {
+        let path_entries: Vec<String> =
+            std::env::split_paths(path_like).map(|p| p.to_string_lossy().to_string()).collect();
+        let first_entry = path_entries.first().expect("Path-like string should not be empty");
+
+        assert_eq!(
+            first_entry, expected,
+            "First path entry should match expected. First entry: {}, expected: {}",
+            first_entry, expected
+        );
+    }
+
+    fn assert_path_entry(expected: &str, path_like: &str) {
+        let path_entries: Vec<String> =
+            std::env::split_paths(path_like).map(|p| p.to_string_lossy().to_string()).collect();
+
+        assert!(
+            path_entries.contains(&expected.to_string()),
+            "Path entry should contain expected. Path entries: {:?}, expected: {}",
+            path_entries,
+            expected
+        );
+    }
+
+    #[test]
+    fn test_insert_to_path_empty_original() {
+        let original = "";
+        let first = PathBuf::from("/usr/local/bin");
+        let result = insert_to_path(original, first.clone()).unwrap();
+        // For empty path case, we just return the path as a string
+        assert_first_path_entry(&first.to_string_lossy(), &result);
+    }
+
+    #[test]
+    fn test_insert_to_path_prepend_new() {
+        let bin = PathBuf::from("/bin");
+        let usr_bin = PathBuf::from("/usr/bin");
+        let usr_local_bin = PathBuf::from("/usr/local/bin");
+
+        // Join the original paths using platform-specific separator
+        let original =
+            std::env::join_paths([usr_bin.clone(), bin.clone()]).unwrap().to_string_lossy().to_string();
+
+        // Apply our function
+        let result = insert_to_path(&original, usr_local_bin.clone()).unwrap();
+
+        // Check that the new path is first
+        assert_first_path_entry(&usr_local_bin.to_string_lossy(), &result);
+        assert_path_entry(&bin.to_string_lossy(), &result);
+        assert_path_entry(&usr_bin.to_string_lossy(), &result);
+    }
+
+    #[test]
+    fn test_insert_to_path_move_existing_to_front() {
+        let bin = PathBuf::from("/bin");
+        let usr_bin = PathBuf::from("/usr/bin");
+        let usr_local_bin = PathBuf::from("/usr/local/bin");
+
+        // Join the original paths using platform-specific separator
+        let original = std::env::join_paths([usr_bin.clone(), usr_local_bin.clone(), bin.clone()])
+            .unwrap()
+            .to_string_lossy()
+            .to_string();
+
+        // Apply our function
+        let result = insert_to_path(&original, usr_local_bin.clone()).unwrap();
+
+        // Check that the existing path was moved to front
+        assert_first_path_entry(&usr_local_bin.to_string_lossy(), &result);
+        assert_path_entry(&bin.to_string_lossy(), &result);
+        assert_path_entry(&usr_bin.to_string_lossy(), &result);
+    }
+
+    #[test]
+    fn test_insert_to_path_already_first() {
+        let bin = PathBuf::from("/bin");
+        let usr_bin = PathBuf::from("/usr/bin");
+        let usr_local_bin = PathBuf::from("/usr/local/bin");
+
+        // Join the original paths using platform-specific separator
+        let original = std::env::join_paths([usr_local_bin.clone(), usr_bin.clone(), bin.clone()])
+            .unwrap()
+            .to_string_lossy()
+            .to_string();
+
+        // Apply our function
+        let result = insert_to_path(&original, usr_local_bin.clone()).unwrap();
+
+        // Check that the path is still first (no change needed)
+        assert_first_path_entry(&usr_local_bin.to_string_lossy(), &result);
+        assert_path_entry(&bin.to_string_lossy(), &result);
+        assert_path_entry(&usr_bin.to_string_lossy(), &result);
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn test_insert_to_path_windows_mingw_preservation() {
+        // Test the exact Windows CI failure scenario - MinGW PATH preservation
+        let original = "C:\\mingw64\\bin;C:\\Windows\\System32;C:\\Program Files\\Git\\bin";
+        let wrapper_dir = "C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\bear-xyz";
+        let first = PathBuf::from(wrapper_dir);
+
+        let result = insert_to_path(original, first).unwrap();
+
+        // Wrapper should be first in PATH
+        assert_first_path_entry(wrapper_dir, &result);
+        assert_path_entry("C:\\mingw64\\bin", &result);
+        assert_path_entry("C:\\Windows\\System32", &result);
+        assert_path_entry("C:\\Program Files\\Git\\bin", &result);
+    }
 }

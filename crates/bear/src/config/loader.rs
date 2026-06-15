@@ -17,7 +17,7 @@ impl Loader {
     /// default configuration will be returned.
     #[allow(clippy::result_large_err)] // Config loading runs once at startup.
     pub fn load(
-        context: &intercept::context::Context,
+        context: &intercept_supervisor::context::Context,
         filename: &Option<String>,
     ) -> Result<Main, ConfigError> {
         if let Some(path) = filename {
@@ -53,7 +53,7 @@ impl Loader {
     ///
     /// Each directory is probed for a `bear.yml` file. The first existing file
     /// is used; remaining locations are not consulted.
-    fn file_locations(context: &intercept::context::Context) -> Vec<PathBuf> {
+    fn file_locations(context: &intercept_supervisor::context::Context) -> Vec<PathBuf> {
         let mut locations: Vec<PathBuf> = Vec::new();
 
         locations.push(context.current_directory.clone().join("bear.yml"));

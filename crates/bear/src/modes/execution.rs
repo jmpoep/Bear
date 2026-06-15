@@ -5,7 +5,7 @@ use crate::environment::execution_from_build_command;
 use crate::output::WriterError;
 use crossbeam_channel::{Receiver, bounded, unbounded};
 use intercept::reporter::ReporterError;
-use intercept::supervise::SuperviseError;
+use intercept_supervisor::SuperviseError;
 use std::process::{ExitCode, ExitStatus};
 use std::sync::Arc;
 use thiserror::Error;

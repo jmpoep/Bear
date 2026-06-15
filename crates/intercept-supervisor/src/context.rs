@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-use crate::environment;
-use crate::environment::KEY_OS__PATH;
+use intercept::environment;
+use intercept::environment::KEY_OS__PATH;
 use std::collections::HashMap;
 use std::env;
 use std::fmt;

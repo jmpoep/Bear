@@ -11,8 +11,8 @@ mod execution;
 use crate::environment;
 use crate::semantic::interpreters::compilers::compiler_recognition::CompilerRecognizer;
 use crate::{args, config, output};
-use intercept::context;
-use intercept::tcp::CollectorOnTcp;
+use intercept_supervisor::CollectorOnTcp;
+use intercept_supervisor::context;
 use std::process::ExitCode;
 use std::sync::Arc;
 
@@ -154,8 +154,8 @@ mod impls {
     use crate::{args, config, output, semantic};
     use crossbeam_channel::{Receiver, Sender};
     use intercept::reporter::ReporterError;
-    use intercept::supervise::SuperviseError;
-    use intercept::tcp::CollectorOnTcp;
+    use intercept_supervisor::CollectorOnTcp;
+    use intercept_supervisor::SuperviseError;
     use std::process::ExitStatus;
     use std::sync::Arc;
     use std::{fs, io};

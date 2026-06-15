@@ -102,6 +102,7 @@ dependencies = [
  "compilers-codegen",
  "crossbeam-channel",
  "intercept",
+ "intercept-supervisor",
  "libc",
  "log",
  "mockall",
@@ -130,7 +131,7 @@ dependencies = [
  "anyhow",
  "bear",
  "env_logger",
- "intercept",
+ "intercept-supervisor",
  "log",
 ]
 
@@ -141,6 +142,7 @@ dependencies = [
  "anyhow",
  "env_logger",
  "intercept",
+ "intercept-supervisor",
  "log",
 ]
 
@@ -594,7 +596,6 @@ dependencies = [
  "log",
  "serde",
  "serde_json",
- "signal-hook",
  "tempfile",
  "thiserror",
 ]
@@ -613,6 +614,21 @@ dependencies = [
  "platform-checks",
  "serde_json",
  "thiserror",
+]
+
+[[package]]
+name = "intercept-supervisor"
+version = "4.1.5"
+dependencies = [
+ "intercept",
+ "libc",
+ "log",
+ "serde",
+ "serde_json",
+ "signal-hook",
+ "tempfile",
+ "thiserror",
+ "which",
 ]
 
 [[package]]

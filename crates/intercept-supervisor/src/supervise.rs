@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-use crate::Execution;
+use intercept::Execution;
 use std::path::PathBuf;
 use std::process::ExitStatus;
 use std::sync::Arc;
@@ -55,28 +55,29 @@ pub fn supervise(command: &mut std::process::Command) -> Result<ExitStatus, Supe
 
 /// This function supervises the execution of a command represented by the `Execution` struct.
 pub fn supervise_execution(execution: Execution) -> Result<ExitStatus, SuperviseError> {
-    let mut child = std::process::Command::try_from(execution)?;
+    let mut child = command_from_execution(execution)?;
     supervise(&mut child)
 }
 
-impl TryFrom<Execution> for std::process::Command {
-    type Error = SuperviseError;
+/// Builds a [`std::process::Command`] from an [`Execution`].
+///
+/// This is a free function rather than a `TryFrom` impl because the orphan
+/// rule forbids implementing the foreign `TryFrom`/`Command` for the foreign
+/// `Execution` from this crate.
+fn command_from_execution(val: Execution) -> Result<std::process::Command, SuperviseError> {
+    let mut command = match val.arguments.as_slice() {
+        [] => return Err(SuperviseError::EmptyArguments),
+        [_] => std::process::Command::new(val.executable),
+        [_, arguments @ ..] => {
+            let mut cmd = std::process::Command::new(val.executable);
+            cmd.args(arguments);
+            cmd
+        }
+    };
 
-    fn try_from(val: Execution) -> Result<Self, Self::Error> {
-        let mut command = match val.arguments.as_slice() {
-            [] => return Err(SuperviseError::EmptyArguments),
-            [_] => std::process::Command::new(val.executable),
-            [_, arguments @ ..] => {
-                let mut cmd = std::process::Command::new(val.executable);
-                cmd.args(arguments);
-                cmd
-            }
-        };
-
-        command.envs(val.environment);
-        command.current_dir(val.working_dir);
-        Ok(command)
-    }
+    command.envs(val.environment);
+    command.current_dir(val.working_dir);
+    Ok(command)
 }
 
 /// Errors that can occur during process supervision.
