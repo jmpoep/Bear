@@ -206,7 +206,7 @@ fn write_output(out_dir: &Path, filename: &str, content: String) -> Result<()> {
 /// `CARGO_MANIFEST_DIR` is `<root>/build-support/compilers-codegen`; the YAML
 /// lives at `<root>/crates/bear/compilers`, so walk up two levels to the
 /// workspace root.
-pub fn flags_dir() -> std::path::PathBuf {
+pub(crate) fn flags_dir() -> std::path::PathBuf {
     let manifest_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let workspace_root = manifest_dir
         .ancestors()

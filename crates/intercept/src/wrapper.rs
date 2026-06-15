@@ -9,7 +9,7 @@
 pub const CONFIG_FILENAME: &str = "wrappers.cfg";
 
 /// The directory name used for wrapper executables in the current working directory.
-pub const WRAPPER_DIR_NAME: &str = ".bear";
+pub(crate) const WRAPPER_DIR_NAME: &str = ".bear";
 
 use std::collections::HashMap;
 use std::fmt::Display;
@@ -89,7 +89,7 @@ impl WrapperConfig {
     ///
     /// On Windows, the key is normalized to lowercase with `.exe` stripped,
     /// so that lookup is case-insensitive and extension-agnostic.
-    pub fn add_executable(&mut self, name: String, path: PathBuf) {
+    pub(crate) fn add_executable(&mut self, name: String, path: PathBuf) {
         self.executables.insert(normalize_executable_key(&name), path);
     }
 
