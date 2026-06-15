@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use intercept::environment;
-use intercept::environment::KEY_OS__PATH;
+use intercept::environment::KEY_OS_PATH;
 use std::collections::HashMap;
 use std::env;
 use std::fmt;
@@ -62,7 +62,7 @@ impl Context {
     pub fn path(&self) -> Option<(String, String)> {
         self.environment
             .iter()
-            .find(|(key, _)| key.to_uppercase() == KEY_OS__PATH)
+            .find(|(key, _)| key.to_uppercase() == KEY_OS_PATH)
             .map(|(key, value)| (key.clone(), value.clone()))
     }
 

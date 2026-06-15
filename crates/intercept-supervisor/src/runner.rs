@@ -14,10 +14,10 @@ use crate::installation::InstallationLayout;
 use crate::supervise;
 use crate::wrapper::{WrapperDirectory, WrapperDirectoryBuilder, WrapperDirectoryError};
 #[cfg(not(target_os = "macos"))]
-use intercept::environment::KEY_OS__PRELOAD_PATH;
-use intercept::environment::{KEY_INTERCEPT_STATE, KEY_OS__PATH, insert_to_path};
+use intercept::environment::KEY_OS_PRELOAD_PATH;
+use intercept::environment::{KEY_INTERCEPT_STATE, KEY_OS_PATH, insert_to_path};
 #[cfg(target_os = "macos")]
-use intercept::environment::{KEY_OS__MACOS_FLAT_NAMESPACE, KEY_OS__MACOS_PRELOAD_PATH};
+use intercept::environment::{KEY_OS_MACOS_FLAT_NAMESPACE, KEY_OS_MACOS_PRELOAD_PATH};
 use intercept::state::PreloadState;
 use std::collections::HashMap;
 use std::env::JoinPathsError;
@@ -163,7 +163,7 @@ impl BuildEnvironment {
             environment_overrides.insert(path_key, path_updated);
         } else {
             environment_overrides
-                .insert(KEY_OS__PATH.to_string(), wrapper_dir.path().to_string_lossy().to_string());
+                .insert(KEY_OS_PATH.to_string(), wrapper_dir.path().to_string_lossy().to_string());
         }
 
         Ok(Self { environment_overrides, _wrapper_directory: Some(wrapper_dir) })
@@ -295,21 +295,21 @@ impl BuildEnvironment {
         {
             // macOS uses DYLD_INSERT_LIBRARIES and DYLD_FORCE_FLAT_NAMESPACE
             let preload_original =
-                context.environment.get(KEY_OS__MACOS_PRELOAD_PATH).cloned().unwrap_or_default();
+                context.environment.get(KEY_OS_MACOS_PRELOAD_PATH).cloned().unwrap_or_default();
             let preload_updated =
                 insert_to_path(&preload_original, library.as_path()).map_err(ConfigurationError::Path)?;
 
-            environment_overrides.insert(KEY_OS__MACOS_PRELOAD_PATH.to_string(), preload_updated);
-            environment_overrides.insert(KEY_OS__MACOS_FLAT_NAMESPACE.to_string(), "1".to_string());
+            environment_overrides.insert(KEY_OS_MACOS_PRELOAD_PATH.to_string(), preload_updated);
+            environment_overrides.insert(KEY_OS_MACOS_FLAT_NAMESPACE.to_string(), "1".to_string());
         }
         #[cfg(not(target_os = "macos"))]
         {
             // Linux and other Unix-like systems use LD_PRELOAD
-            let preload_original = context.environment.get(KEY_OS__PRELOAD_PATH).cloned().unwrap_or_default();
+            let preload_original = context.environment.get(KEY_OS_PRELOAD_PATH).cloned().unwrap_or_default();
             let preload_updated =
                 insert_to_path(&preload_original, library.as_path()).map_err(ConfigurationError::Path)?;
 
-            environment_overrides.insert(KEY_OS__PRELOAD_PATH.to_string(), preload_updated);
+            environment_overrides.insert(KEY_OS_PRELOAD_PATH.to_string(), preload_updated);
         }
 
         // Make the current state available as a single environment variable
@@ -612,7 +612,7 @@ mod test {
             fn refresh_path(&mut self) {
                 let joined = std::env::join_paths(self.tool_dirs.iter().map(|d| d.path().to_owned()))
                     .expect("join PATH");
-                self.environment.insert(KEY_OS__PATH.to_string(), joined.into_string().expect("utf-8 PATH"));
+                self.environment.insert(KEY_OS_PATH.to_string(), joined.into_string().expect("utf-8 PATH"));
             }
 
             /// Creates a new tool directory, writes a fake compiler
@@ -671,7 +671,7 @@ mod test {
             /// that want a specific, non-tool-dir PATH (e.g. to force
             /// PATH resolution failure).
             pub fn with_path_string(mut self, value: &str) -> Self {
-                self.environment.insert(KEY_OS__PATH.to_string(), value.into());
+                self.environment.insert(KEY_OS_PATH.to_string(), value.into());
                 self
             }
 
@@ -723,7 +723,7 @@ mod test {
             let context = {
                 let environment = {
                     let mut builder = HashMap::new();
-                    builder.insert(KEY_OS__PATH.to_string(), "/usr/bin:/bin".to_string());
+                    builder.insert(KEY_OS_PATH.to_string(), "/usr/bin:/bin".to_string());
                     builder.insert("CC".to_string(), "/usr/bin/gcc".to_string());
                     builder.insert("CXX".to_string(), "/usr/bin/g++".to_string());
                     builder
@@ -751,15 +751,15 @@ mod test {
         #[cfg(target_os = "macos")]
         {
             assert_eq!(sut.environment_overrides.get(KEY_INTERCEPT_STATE), Some(&expected_state));
-            let dyld_preload = sut.environment_overrides.get(KEY_OS__MACOS_PRELOAD_PATH).unwrap();
+            let dyld_preload = sut.environment_overrides.get(KEY_OS_MACOS_PRELOAD_PATH).unwrap();
             assert_first_path_entry(&expected_library, dyld_preload);
 
-            assert_eq!(sut.environment_overrides.get(KEY_OS__MACOS_FLAT_NAMESPACE), Some(&"1".to_string()));
+            assert_eq!(sut.environment_overrides.get(KEY_OS_MACOS_FLAT_NAMESPACE), Some(&"1".to_string()));
         }
         #[cfg(not(target_os = "macos"))]
         {
             assert_eq!(sut.environment_overrides.get(KEY_INTERCEPT_STATE), Some(&expected_state));
-            let ld_preload = sut.environment_overrides.get(KEY_OS__PRELOAD_PATH).unwrap();
+            let ld_preload = sut.environment_overrides.get(KEY_OS_PRELOAD_PATH).unwrap();
             assert_first_path_entry(&expected_library, ld_preload);
         }
 
@@ -1146,7 +1146,7 @@ mod test {
 
         let mut environment = HashMap::new();
         environment.insert(
-            KEY_OS__PATH.to_string(),
+            KEY_OS_PATH.to_string(),
             std::env::join_paths([&masq_dir, &real_dir]).unwrap().into_string().unwrap(),
         );
 

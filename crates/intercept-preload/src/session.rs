@@ -39,17 +39,17 @@ use std::sync::OnceLock;
 
 use intercept::environment::KEY_INTERCEPT_STATE;
 #[cfg(not(target_os = "macos"))]
-use intercept::environment::KEY_OS__PRELOAD_PATH;
+use intercept::environment::KEY_OS_PRELOAD_PATH;
 #[cfg(target_os = "macos")]
-use intercept::environment::{KEY_OS__MACOS_FLAT_NAMESPACE, KEY_OS__MACOS_PRELOAD_PATH};
+use intercept::environment::{KEY_OS_MACOS_FLAT_NAMESPACE, KEY_OS_MACOS_PRELOAD_PATH};
 use intercept::state::PreloadState;
 use libc::{c_char, c_int};
 
 /// The preload environment variable key for the current platform.
 #[cfg(target_os = "macos")]
-pub const PRELOAD_KEY: &str = KEY_OS__MACOS_PRELOAD_PATH;
+pub const PRELOAD_KEY: &str = KEY_OS_MACOS_PRELOAD_PATH;
 #[cfg(not(target_os = "macos"))]
-pub const PRELOAD_KEY: &str = KEY_OS__PRELOAD_PATH;
+pub const PRELOAD_KEY: &str = KEY_OS_PRELOAD_PATH;
 
 /// Combined session state, initialized atomically from the C constructor.
 ///
@@ -260,7 +260,7 @@ impl DoctoredEnvironment {
             for (key, value, full_entry) in unsafe { envp_iter(envp) } {
                 #[cfg(target_os = "macos")]
                 let dominated_by_bear =
-                    key == KEY_INTERCEPT_STATE || key == PRELOAD_KEY || key == KEY_OS__MACOS_FLAT_NAMESPACE;
+                    key == KEY_INTERCEPT_STATE || key == PRELOAD_KEY || key == KEY_OS_MACOS_FLAT_NAMESPACE;
                 #[cfg(not(target_os = "macos"))]
                 let dominated_by_bear = key == KEY_INTERCEPT_STATE || key == PRELOAD_KEY;
 
@@ -288,7 +288,7 @@ impl DoctoredEnvironment {
         // On macOS, add the flat namespace flag
         #[cfg(target_os = "macos")]
         {
-            let flat_namespace_entry = format!("{}=1", KEY_OS__MACOS_FLAT_NAMESPACE);
+            let flat_namespace_entry = format!("{}=1", KEY_OS_MACOS_FLAT_NAMESPACE);
             strings.push(CString::new(flat_namespace_entry).map_err(|_| libc::EINVAL)?);
         }
 

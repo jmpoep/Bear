@@ -7,62 +7,62 @@ use std::path::{Path, PathBuf};
 pub const KEY_INTERCEPT_STATE: &str = "BEAR_INTERCEPT";
 
 // man page for `ld.so` (Linux dynamic linker/loader)
-pub const KEY_OS__PRELOAD_PATH: &str = "LD_PRELOAD";
+pub const KEY_OS_PRELOAD_PATH: &str = "LD_PRELOAD";
 // man page for `dyld` (macOS dynamic linker)
-pub const KEY_OS__MACOS_PRELOAD_PATH: &str = "DYLD_INSERT_LIBRARIES";
-pub const KEY_OS__MACOS_FLAT_NAMESPACE: &str = "DYLD_FORCE_FLAT_NAMESPACE";
+pub const KEY_OS_MACOS_PRELOAD_PATH: &str = "DYLD_INSERT_LIBRARIES";
+pub const KEY_OS_MACOS_FLAT_NAMESPACE: &str = "DYLD_FORCE_FLAT_NAMESPACE";
 // man page for `exec` (Linux system call)
-pub const KEY_OS__PATH: &str = "PATH";
+pub const KEY_OS_PATH: &str = "PATH";
 
 // Compiler-specific environment variable names, generated from compilers/*.yaml.
 include!(concat!(env!("OUT_DIR"), "/env_keys.rs"));
 
 // https://www.gnu.org/software/make/manual/html_node/Implicit-Variables.html
-pub(crate) const KEY_MAKE__C_COMPILER: &str = "CC";
-pub(crate) const KEY_MAKE__CXX_COMPILER: &str = "CXX";
-pub(crate) const KEY_MAKE__C_PREPROCESSOR: &str = "CPP";
-pub(crate) const KEY_MAKE__FORTRAN_COMPILER: &str = "FC";
-pub(crate) const KEY_MAKE__ARCHIVE: &str = "AR";
-pub(crate) const KEY_MAKE__ASSEMBLER: &str = "AS";
-pub(crate) const KEY_MAKE__MODULA_COMPILER: &str = "M2C";
-pub(crate) const KEY_MAKE__PASCAL_COMPILER: &str = "PC";
-pub(crate) const KEY_MAKE__LEX: &str = "LEX";
-pub(crate) const KEY_MAKE__YACC: &str = "YACC";
-pub(crate) const KEY_MAKE__LINT: &str = "LINT";
+pub(crate) const KEY_MAKE_C_COMPILER: &str = "CC";
+pub(crate) const KEY_MAKE_CXX_COMPILER: &str = "CXX";
+pub(crate) const KEY_MAKE_C_PREPROCESSOR: &str = "CPP";
+pub(crate) const KEY_MAKE_FORTRAN_COMPILER: &str = "FC";
+pub(crate) const KEY_MAKE_ARCHIVE: &str = "AR";
+pub(crate) const KEY_MAKE_ASSEMBLER: &str = "AS";
+pub(crate) const KEY_MAKE_MODULA_COMPILER: &str = "M2C";
+pub(crate) const KEY_MAKE_PASCAL_COMPILER: &str = "PC";
+pub(crate) const KEY_MAKE_LEX: &str = "LEX";
+pub(crate) const KEY_MAKE_YACC: &str = "YACC";
+pub(crate) const KEY_MAKE_LINT: &str = "LINT";
 
-pub(crate) const KEY_MAKE__AR_FLAGS: &str = "ARFLAGS";
-pub(crate) const KEY_MAKE__AS_FLAGS: &str = "ASFLAGS";
-pub(crate) const KEY_MAKE__C_FLAGS: &str = "CFLAGS";
-pub(crate) const KEY_MAKE__CXX_FLAGS: &str = "CXXFLAGS";
-pub(crate) const KEY_MAKE__C_PREPROCESSOR_FLAGS: &str = "CPPFLAGS";
-pub(crate) const KEY_MAKE__FORTRAN_FLAGS: &str = "FFLAGS";
-pub(crate) const KEY_MAKE__LINKER_FLAGS: &str = "LDFLAGS";
-pub(crate) const KEY_MAKE__LINKER_LIBS: &str = "LDLIBS";
-pub(crate) const KEY_MAKE__LEX_FLAGS: &str = "LFLAGS";
-pub(crate) const KEY_MAKE__YACC_FLAGS: &str = "YFLAGS";
-pub(crate) const KEY_MAKE__PASCAL_FLAGS: &str = "PFLAGS";
-pub(crate) const KEY_MAKE__LINT_FLAGS: &str = "LINTFLAGS";
+pub(crate) const KEY_MAKE_AR_FLAGS: &str = "ARFLAGS";
+pub(crate) const KEY_MAKE_AS_FLAGS: &str = "ASFLAGS";
+pub(crate) const KEY_MAKE_C_FLAGS: &str = "CFLAGS";
+pub(crate) const KEY_MAKE_CXX_FLAGS: &str = "CXXFLAGS";
+pub(crate) const KEY_MAKE_C_PREPROCESSOR_FLAGS: &str = "CPPFLAGS";
+pub(crate) const KEY_MAKE_FORTRAN_FLAGS: &str = "FFLAGS";
+pub(crate) const KEY_MAKE_LINKER_FLAGS: &str = "LDFLAGS";
+pub(crate) const KEY_MAKE_LINKER_LIBS: &str = "LDLIBS";
+pub(crate) const KEY_MAKE_LEX_FLAGS: &str = "LFLAGS";
+pub(crate) const KEY_MAKE_YACC_FLAGS: &str = "YFLAGS";
+pub(crate) const KEY_MAKE_PASCAL_FLAGS: &str = "PFLAGS";
+pub(crate) const KEY_MAKE_LINT_FLAGS: &str = "LINTFLAGS";
 
 // https://doc.rust-lang.org/cargo/reference/environment-variables.html
-pub(crate) const KEY_CARGO__CARGO: &str = "CARGO";
-pub(crate) const KEY_CARGO__RUSTC: &str = "RUSTC";
-pub(crate) const KEY_CARGO__RUSTC_WRAPPER: &str = "RUSTC_WRAPPER";
+pub(crate) const KEY_CARGO_CARGO: &str = "CARGO";
+pub(crate) const KEY_CARGO_RUSTC: &str = "RUSTC";
+pub(crate) const KEY_CARGO_RUSTC_WRAPPER: &str = "RUSTC_WRAPPER";
 
-pub(crate) const KEY_CARGO__RUSTFLAGS: &str = "RUSTFLAGS";
+pub(crate) const KEY_CARGO_RUSTFLAGS: &str = "RUSTFLAGS";
 
 static MAKE_PROGRAM_KEYS: std::sync::LazyLock<HashSet<&'static str>> = std::sync::LazyLock::new(|| {
     [
-        KEY_MAKE__C_COMPILER,
-        KEY_MAKE__CXX_COMPILER,
-        KEY_MAKE__C_PREPROCESSOR,
-        KEY_MAKE__FORTRAN_COMPILER,
-        KEY_MAKE__ARCHIVE,
-        KEY_MAKE__ASSEMBLER,
-        KEY_MAKE__MODULA_COMPILER,
-        KEY_MAKE__PASCAL_COMPILER,
-        KEY_MAKE__LEX,
-        KEY_MAKE__YACC,
-        KEY_MAKE__LINT,
+        KEY_MAKE_C_COMPILER,
+        KEY_MAKE_CXX_COMPILER,
+        KEY_MAKE_C_PREPROCESSOR,
+        KEY_MAKE_FORTRAN_COMPILER,
+        KEY_MAKE_ARCHIVE,
+        KEY_MAKE_ASSEMBLER,
+        KEY_MAKE_MODULA_COMPILER,
+        KEY_MAKE_PASCAL_COMPILER,
+        KEY_MAKE_LEX,
+        KEY_MAKE_YACC,
+        KEY_MAKE_LINT,
     ]
     .iter()
     .cloned()
@@ -71,18 +71,18 @@ static MAKE_PROGRAM_KEYS: std::sync::LazyLock<HashSet<&'static str>> = std::sync
 
 static MAKE_FLAGS_KEYS: std::sync::LazyLock<HashSet<&'static str>> = std::sync::LazyLock::new(|| {
     [
-        KEY_MAKE__AR_FLAGS,
-        KEY_MAKE__AS_FLAGS,
-        KEY_MAKE__C_FLAGS,
-        KEY_MAKE__CXX_FLAGS,
-        KEY_MAKE__C_PREPROCESSOR_FLAGS,
-        KEY_MAKE__FORTRAN_FLAGS,
-        KEY_MAKE__LINKER_FLAGS,
-        KEY_MAKE__LINKER_LIBS,
-        KEY_MAKE__LEX_FLAGS,
-        KEY_MAKE__YACC_FLAGS,
-        KEY_MAKE__PASCAL_FLAGS,
-        KEY_MAKE__LINT_FLAGS,
+        KEY_MAKE_AR_FLAGS,
+        KEY_MAKE_AS_FLAGS,
+        KEY_MAKE_C_FLAGS,
+        KEY_MAKE_CXX_FLAGS,
+        KEY_MAKE_C_PREPROCESSOR_FLAGS,
+        KEY_MAKE_FORTRAN_FLAGS,
+        KEY_MAKE_LINKER_FLAGS,
+        KEY_MAKE_LINKER_LIBS,
+        KEY_MAKE_LEX_FLAGS,
+        KEY_MAKE_YACC_FLAGS,
+        KEY_MAKE_PASCAL_FLAGS,
+        KEY_MAKE_LINT_FLAGS,
     ]
     .iter()
     .cloned()
@@ -90,21 +90,21 @@ static MAKE_FLAGS_KEYS: std::sync::LazyLock<HashSet<&'static str>> = std::sync::
 });
 
 static CARGO_PROGRAM_KEYS: std::sync::LazyLock<HashSet<&'static str>> = std::sync::LazyLock::new(|| {
-    [KEY_CARGO__CARGO, KEY_CARGO__RUSTC, KEY_CARGO__RUSTC_WRAPPER].iter().cloned().collect()
+    [KEY_CARGO_CARGO, KEY_CARGO_RUSTC, KEY_CARGO_RUSTC_WRAPPER].iter().cloned().collect()
 });
 
 static CARGO_FLAGS_KEYS: std::sync::LazyLock<HashSet<&'static str>> =
-    std::sync::LazyLock::new(|| [KEY_CARGO__RUSTFLAGS].iter().cloned().collect());
+    std::sync::LazyLock::new(|| [KEY_CARGO_RUSTFLAGS].iter().cloned().collect());
 
 pub fn relevant_env(key: &str) -> bool {
-    matches!(key, KEY_INTERCEPT_STATE | KEY_OS__PRELOAD_PATH | KEY_OS__MACOS_PRELOAD_PATH | KEY_OS__MACOS_FLAT_NAMESPACE)
+    matches!(key, KEY_INTERCEPT_STATE | KEY_OS_PRELOAD_PATH | KEY_OS_MACOS_PRELOAD_PATH | KEY_OS_MACOS_FLAT_NAMESPACE)
         || MAKE_PROGRAM_KEYS.contains(key)
         || MAKE_FLAGS_KEYS.contains(key)
         || CARGO_PROGRAM_KEYS.contains(key)
         || CARGO_FLAGS_KEYS.contains(key)
         || COMPILER_ENV_KEYS.contains(&key)
         // Windows PATH variable is case sensitive and not always capitalized
-        || key.to_uppercase() == KEY_OS__PATH
+        || key.to_uppercase() == KEY_OS_PATH
 }
 
 pub fn program_env(key: &str) -> bool {

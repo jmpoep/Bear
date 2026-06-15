@@ -214,7 +214,7 @@ mod caching_tests {
 mod unix {
     use super::CompilerProbe;
     use crate::config::CompilerType;
-    use intercept::environment::{KEY_OS__MACOS_PRELOAD_PATH, KEY_OS__PRELOAD_PATH};
+    use intercept::environment::{KEY_OS_MACOS_PRELOAD_PATH, KEY_OS_PRELOAD_PATH};
     use std::os::unix::process::CommandExt;
     use std::path::Path;
     use std::process::{Command, Stdio};
@@ -251,8 +251,8 @@ mod unix {
                 .stdin(Stdio::null())
                 .stdout(Stdio::piped())
                 .stderr(Stdio::piped())
-                .env_remove(KEY_OS__PRELOAD_PATH)
-                .env_remove(KEY_OS__MACOS_PRELOAD_PATH);
+                .env_remove(KEY_OS_PRELOAD_PATH)
+                .env_remove(KEY_OS_MACOS_PRELOAD_PATH);
 
             // Put the child in its own process group so the watchdog can kill
             // not just the immediate child but the entire process tree it
