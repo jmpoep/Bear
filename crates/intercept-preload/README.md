@@ -13,10 +13,12 @@ The library is split into a C shim (`src/c/shim.c`) and Rust implementation (`sr
 
 ## Supported Platforms
 
-- **Linux** — uses `LD_PRELOAD` and ELF version scripts for symbol visibility
-- **macOS** — uses `DYLD_INSERT_LIBRARIES` and `-exported_symbols_list` for symbol visibility
+| Platform | Mechanism | Symbol visibility |
+|---|---|---|
+| Linux, FreeBSD, OpenBSD, NetBSD, DragonFly BSD | `LD_PRELOAD` | ELF version scripts |
+| macOS | `DYLD_INSERT_LIBRARIES` | `-exported_symbols_list` |
 
-On unsupported platforms, the build process will display a warning and skip library generation.
+On unsupported platforms (e.g. Windows), the build displays a warning and skips library generation.
 
 ## Features
 

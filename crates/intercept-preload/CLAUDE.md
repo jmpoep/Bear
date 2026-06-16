@@ -1,33 +1,13 @@
 ## Preload interception library
 
-Read `README.md` in this directory for platform details and build instructions.
+`README.md` in this directory is the reference for what this crate is, the
+C/Rust split and the reasons for it, the supported-platform matrix, and the
+build instructions. This file covers only the constraints an agent needs.
 
 ## Architecture constraint
 
-The library is split into C shim (`src/c/shim.c`) and Rust (`src/implementation.rs`).
-This split is mandatory:
-
-1. Stable Rust cannot handle C variadic arguments (`execl` family)
-2. On FreeBSD, having all exported symbols in C avoids recursive interception via `dlsym(RTLD_NEXT, ...)`
-
-Do not merge the C and Rust parts.
-
-## Supported platforms
-
-| Platform | Mechanism | Symbol visibility |
-|---|---|---|
-| Linux, FreeBSD, OpenBSD, NetBSD, DragonFly BSD | `LD_PRELOAD` | ELF version scripts |
-| macOS | `DYLD_INSERT_LIBRARIES` | `-exported_symbols_list` |
-
-The code uses `cfg(target_os = "macos")` vs `cfg(not(target_os = "macos"))`,
-so all non-macOS Unix platforms use the `LD_PRELOAD` path.
-
-On unsupported platforms (e.g., Windows), the build warns and skips library generation.
-
-## What it intercepts
-
-`exec` family, `posix_spawn`, `popen`, `system`. Only functions detected as
-available on the host at build time (via `platform-checks`).
+The C shim (`src/c/shim.c`) and Rust (`src/implementation.rs`) split is
+mandatory; the rationale is in `README.md`. Do not merge the C and Rust parts.
 
 ## Unsafe code
 
