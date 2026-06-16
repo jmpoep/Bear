@@ -147,6 +147,8 @@ format\f[B]:\f[R]
   entries\f[B]:\f[R]
     use_array_format\f[B]:\f[R] true
     include_output_field\f[B]:\f[R] true
+  arguments\f[B]:\f[R]
+    from_response_files\f[B]:\f[R] false
 .EE
 .PP
 This example configuration file: sets the interception mode to
@@ -234,6 +236,15 @@ Note: vala\-language\-server reads only the command\-string form, so set
 this to \f[CR]false\f[R] for Vala projects (see TROUBLESHOOTING)
 .IP \(bu 2
 \f[B]entries.include_output_field\f[R]: Include output field in entries
+.IP \(bu 2
+\f[B]arguments.from_response_files\f[R]: Replace \f[CR]\(atfile\f[R]
+response\-file references in each entry\(cqs arguments with the
+file\(cqs tokenized contents (resolved relative to the compiler\(cqs
+working directory, expanded recursively, MSVC/clang\-cl using Windows
+quoting and other compilers using GCC/Clang quoting).
+Disabled by default, in which case an \f[CR]\(atfile\f[R] argument is
+recorded verbatim.
+Missing or unreadable files are left literal with a warning.
 .SS Default Configuration
 If no configuration file is specified, Bear uses built\-in defaults
 optimized for most use cases.

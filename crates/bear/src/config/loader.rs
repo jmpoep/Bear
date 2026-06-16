@@ -223,6 +223,7 @@ mod test {
             format: Format {
                 paths: PathFormat { directory: PathResolver::Canonical, file: PathResolver::Canonical },
                 entries: EntryFormat { use_array_format: true, include_output_field: true },
+                arguments: ArgumentsFormat::default(),
             },
         };
 
@@ -256,6 +257,7 @@ mod test {
             format: Format {
                 paths: PathFormat { directory: PathResolver::AsIs, file: PathResolver::AsIs },
                 entries: EntryFormat { use_array_format: true, include_output_field: true },
+                arguments: ArgumentsFormat::default(),
             },
         };
 
@@ -288,6 +290,7 @@ mod test {
             format: Format {
                 paths: PathFormat { directory: PathResolver::Absolute, file: PathResolver::Absolute },
                 entries: EntryFormat { use_array_format: true, include_output_field: true },
+                arguments: ArgumentsFormat::default(),
             },
         };
 

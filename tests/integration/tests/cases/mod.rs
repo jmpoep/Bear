@@ -35,4 +35,6 @@ pub mod hardened_intercept;
 pub mod intercept;
 #[cfg(has_preload_library)]
 pub mod intercept_posix;
+#[cfg(all(has_preload_library, has_executable_compiler_c, has_executable_shell))]
+pub mod response_files;
 pub mod semantic;

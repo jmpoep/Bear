@@ -130,6 +130,8 @@ format:
   entries:
     use_array_format: true
     include_output_field: true
+  arguments:
+    from_response_files: false
 ```
 
 This example configuration file:
@@ -195,6 +197,7 @@ Output formatting configuration:
   - **absolute**: Convert to absolute path,
 - **entries.use_array_format**: Use arguments array instead of command string. Note: vala-language-server reads only the command-string form, so set this to `false` for Vala projects (see TROUBLESHOOTING)
 - **entries.include_output_field**: Include output field in entries
+- **arguments.from_response_files**: Replace `@file` response-file references in each entry's arguments with the file's tokenized contents (resolved relative to the compiler's working directory, expanded recursively, MSVC/clang-cl using Windows quoting and other compilers using GCC/Clang quoting). Disabled by default, in which case an `@file` argument is recorded verbatim. Missing or unreadable files are left literal with a warning.
 
 ## Default Configuration
 

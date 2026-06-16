@@ -210,6 +210,18 @@ pub struct Format {
     pub paths: PathFormat,
     #[serde(default)]
     pub entries: EntryFormat,
+    #[serde(default)]
+    pub arguments: ArgumentsFormat,
+}
+
+/// Controls how the `arguments` field of each entry is assembled during
+/// semantic analysis.
+#[derive(Clone, Debug, Default, PartialEq, serde::Deserialize, serde::Serialize)]
+pub struct ArgumentsFormat {
+    /// Replace `@file` response-file references with their tokenized contents.
+    /// Disabled by default: an `@file` argument is recorded verbatim.
+    #[serde(default)]
+    pub from_response_files: bool,
 }
 
 /// Format configuration of paths in the JSON compilation database.

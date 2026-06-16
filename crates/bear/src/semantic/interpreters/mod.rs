@@ -39,7 +39,8 @@ pub fn create<'a>(config: &config::Main, confstr_path: String) -> impl Interpret
     }
 
     // Add compiler interpreter that handles recognition and delegation
-    let tool = CompilerInterpreter::new_with_config(&config.compilers);
+    let tool = CompilerInterpreter::new_with_config(&config.compilers)
+        .with_response_files(config.format.arguments.from_response_files);
     interpreters.push(Box::new(tool));
 
     // Wrap the chain with executable path resolution so bare filenames

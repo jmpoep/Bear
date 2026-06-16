@@ -349,7 +349,7 @@ impl CommandConverter {
 mod tests {
     use super::super::path_format::FormatError;
     use super::*;
-    use crate::config::{EntryFormat, Format, PathFormat, PathResolver};
+    use crate::config::{ArgumentsFormat, EntryFormat, Format, PathFormat, PathResolver};
     use crate::semantic::{ArgumentKind, Command, CompilerPass, PassEffect};
     use std::ffi::OsStr;
     use std::io;
@@ -385,7 +385,11 @@ mod tests {
         );
 
         let sut = {
-            let format = Format { paths: PathFormat::default(), entries: EntryFormat::default() };
+            let format = Format {
+                paths: PathFormat::default(),
+                entries: EntryFormat::default(),
+                arguments: ArgumentsFormat::default(),
+            };
             CommandConverter::new(format)
         };
 
@@ -414,7 +418,11 @@ mod tests {
         );
 
         let sut = {
-            let format = Format { paths: PathFormat::default(), entries: EntryFormat::default() };
+            let format = Format {
+                paths: PathFormat::default(),
+                entries: EntryFormat::default(),
+                arguments: ArgumentsFormat::default(),
+            };
             CommandConverter::new(format)
         };
 
@@ -446,7 +454,11 @@ mod tests {
         );
 
         let sut = {
-            let format = Format { paths: PathFormat::default(), entries: EntryFormat::default() };
+            let format = Format {
+                paths: PathFormat::default(),
+                entries: EntryFormat::default(),
+                arguments: ArgumentsFormat::default(),
+            };
             CommandConverter::new(format)
         };
 
@@ -473,6 +485,7 @@ mod tests {
             let format = Format {
                 paths: PathFormat::default(),
                 entries: EntryFormat { include_output_field: true, use_array_format: false },
+                arguments: ArgumentsFormat::default(),
             };
             CommandConverter::new(format)
         };
@@ -505,6 +518,7 @@ mod tests {
             let format = Format {
                 paths: PathFormat::default(),
                 entries: EntryFormat { use_array_format: true, include_output_field: false },
+                arguments: ArgumentsFormat::default(),
             };
             CommandConverter::new(format)
         };
@@ -527,6 +541,7 @@ mod tests {
             let format = Format {
                 paths: PathFormat::default(),
                 entries: EntryFormat { use_array_format: true, include_output_field: false },
+                arguments: ArgumentsFormat::default(),
             };
             CommandConverter::new(format)
         };
@@ -674,6 +689,7 @@ mod tests {
             let format = Format {
                 paths: PathFormat::default(),
                 entries: EntryFormat { use_array_format: true, include_output_field: false },
+                arguments: ArgumentsFormat::default(),
             };
             CommandConverter::new(format)
         };
@@ -839,6 +855,7 @@ mod tests {
             let format = Format {
                 paths: PathFormat::default(),
                 entries: EntryFormat { use_array_format: true, include_output_field: true },
+                arguments: ArgumentsFormat::default(),
             };
             CommandConverter::new(format)
         };
@@ -959,6 +976,7 @@ mod tests {
             let format = Format {
                 paths: PathFormat { directory: PathResolver::Absolute, file: PathResolver::Absolute },
                 entries: EntryFormat::default(),
+                arguments: ArgumentsFormat::default(),
             };
             CommandConverter::new(format)
         };
@@ -997,6 +1015,7 @@ mod tests {
             let format = Format {
                 paths: PathFormat { directory: PathResolver::Relative, file: PathResolver::Relative },
                 entries: EntryFormat::default(),
+                arguments: ArgumentsFormat::default(),
             };
             CommandConverter::new(format)
         };
@@ -1041,6 +1060,7 @@ mod tests {
             let format = Format {
                 paths: PathFormat { directory: PathResolver::Canonical, file: PathResolver::Canonical },
                 entries: EntryFormat::default(),
+                arguments: ArgumentsFormat::default(),
             };
             CommandConverter::new(format)
         };
@@ -1078,6 +1098,7 @@ mod tests {
             let format = Format {
                 paths: PathFormat { directory: PathResolver::Absolute, file: PathResolver::Relative },
                 entries: EntryFormat::default(),
+                arguments: ArgumentsFormat::default(),
             };
             CommandConverter::new(format)
         };

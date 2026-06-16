@@ -9,6 +9,7 @@
 pub mod compiler_recognition;
 mod flag_based;
 mod probe;
+mod response_file;
 mod wrapper;
 
 use super::super::{Interpreter, RecognizeResult};
@@ -26,14 +27,19 @@ use std::collections::HashMap;
 pub struct CompilerInterpreter {
     recognizer: CompilerRecognizer,
     interpreters: HashMap<CompilerType, Box<dyn Interpreter>>,
+    inline_response_files: bool,
 }
 
 impl CompilerInterpreter {
     /// Builds a fully configured compiler interpreter with every supported
-    /// compiler type registered.
+    /// compiler type registered. Response-file inlining is disabled; enable it
+    /// with [`Self::with_response_files`].
     pub fn new_with_config(compilers: &[crate::config::Compiler]) -> Self {
-        let mut result =
-            Self { recognizer: CompilerRecognizer::new_with_config(compilers), interpreters: HashMap::new() };
+        let mut result = Self {
+            recognizer: CompilerRecognizer::new_with_config(compilers),
+            interpreters: HashMap::new(),
+            inline_response_files: false,
+        };
 
         result.register(CompilerType::Gcc, flag_based::gcc());
         result.register(CompilerType::Clang, flag_based::clang());
@@ -50,6 +56,13 @@ impl CompilerInterpreter {
         result.register(CompilerType::Vala, flag_based::vala());
 
         result
+    }
+
+    /// Enables or disables inlining `@file` response-file references into the
+    /// recognized arguments (`format.arguments.from_response_files`).
+    pub fn with_response_files(mut self, enabled: bool) -> Self {
+        self.inline_response_files = enabled;
+        self
     }
 
     /// Registers an interpreter for a specific compiler type, wrapping it
@@ -80,6 +93,15 @@ impl Interpreter for CompilerInterpreter {
             },
             Some(ty) => (execution, ty),
             None => return RecognizeResult::NotRecognized(execution),
+        };
+
+        // Inline @file response files before flag classification, so their
+        // tokens are classified, link-stripped, and split per source like any
+        // other argument. Tokenization follows the family just identified.
+        let execution = if self.inline_response_files {
+            response_file::expand(execution, response_file::syntax_for(compiler_type))
+        } else {
+            execution
         };
 
         match self.interpreters.get(&compiler_type) {
