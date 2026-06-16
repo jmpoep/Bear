@@ -96,6 +96,22 @@ Two further forces shaped the design:
 - The `platform` seam keeps cgroups, Job Objects, and pidfd as drop-in
   upgrades rather than rewrites.
 
+## Rejected: unifying the probe watchdog on `process_group(0)`
+
+It is tempting to drop the `unsafe setsid` in the version-probe watchdog
+(`semantic/interpreters/compilers/probe.rs`) and reuse Stage 1's safe
+`Command::process_group(0)`, on the theory that `setsid`'s extra
+controlling-terminal detach is a no-op once `stdin` is null and
+`stdout`/`stderr` are pipes. Testing refutes it: under the parallel probe
+suite, `process_group(0)` produced intermittent misclassification (3 of 8
+runs failed) while `setsid` did not (0 of 13). `setsid` gives each
+short-lived probe its own session with no controlling terminal;
+`process_group(0)` leaves it a background group inside the test runner's
+session and terminal, and under concurrency that difference is observable.
+The two calls are therefore *not* interchangeable in general - the lighter
+one is right for a single supervised build (Stage 1) but wrong for the
+probe. The probe keeps `setsid`.
+
 ## References
 
 - Requirement: `interception-signal-forwarding`
