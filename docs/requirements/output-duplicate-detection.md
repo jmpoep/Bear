@@ -34,9 +34,12 @@ downstream tool confusion.
 
 ## Non-functional constraints
 
-- Hash-based detection uses O(n) memory proportional to unique entries
-- The filter processes entries one at a time without buffering the full
-  stream, but retains hashes for all unique entries seen so far
+- The first occurrence of each identical entry is kept and later
+  duplicates are dropped
+- Entries are processed as a stream, one at a time, without buffering
+  the whole input; every unique entry seen so far is remembered for the
+  rest of the run, so a duplicate is detected no matter how far apart the
+  two occurrences are
 
 ## Testing
 

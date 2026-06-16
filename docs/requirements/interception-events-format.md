@@ -52,10 +52,8 @@ sources.
 - The format must remain JSON Lines, not a single JSON array. This
   matters for streaming producers and for fault-tolerant readers
   (a truncated file still yields N-1 valid events).
-- The schema documentation lives in this requirement file. The Rust
-  types in `bear` are authoritative for field names; the documentation
-  must be kept in sync (this is checked by reading the types from the
-  source on review).
+- The wire schema documented in this requirement is normative for the
+  events file format.
 
 ## Testing
 

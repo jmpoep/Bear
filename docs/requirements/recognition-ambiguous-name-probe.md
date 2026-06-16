@@ -36,8 +36,7 @@ ability to override Bear's guess when needed.
   this requirement exists to prevent.
 - Probes never deadlock. Stdin is closed; the call returns within a bounded
   time budget even for hung children.
-- Probes do not re-enter Bear's own interception. `LD_PRELOAD` and
-  `DYLD_INSERT_LIBRARIES` are stripped from the probe's environment.
+- Probes do not recursively re-enter Bear's own interception.
 - A user `compilers:` config entry for a path takes priority over the
   probe and disables it for that path. This is the supported override
   mechanism and the only way to recover recognition for a quirky `cc`
@@ -56,9 +55,8 @@ ability to override Bear's guess when needed.
 
 ## Non-functional constraints
 
-- The probe must not be invoked from the per-execution hot path more than
-  once per unique canonical path. The intended cost on a clean build is
-  one or two `fork+exec` pairs total, not per invocation.
+- The probe runs at most once per unique canonical path, not once per
+  invocation.
 - Probe timeout: short (single-digit seconds), bounded.
 - The classification rule is conservative: when in doubt, return no
   classification rather than guess wrong. A misclassification corrupts the

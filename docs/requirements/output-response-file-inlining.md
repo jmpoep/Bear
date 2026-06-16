@@ -94,10 +94,9 @@ relative to the original invocation's working directory.
 
 ### Per-source semantics are preserved
 
-- Inlining is applied before the entry is split per source file
-  (see `output-compilation-entries`). Inlined tokens participate in
-  flag classification, link-only stripping, and the
-  one-entry-per-source rule like any other argument.
+- Inlined tokens participate in flag classification, link-only
+  stripping, and the one-entry-per-source rule (see
+  `output-compilation-entries`) exactly like any other argument.
 - Within a given entry, the inlined tokens appear at the position of
   the original `@file` token, and the relative order of all other
   arguments is unchanged.
