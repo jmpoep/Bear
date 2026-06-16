@@ -22,7 +22,7 @@ fi
 
 # Space-separated search roots. Word splitting on the expansion below is
 # intentional, so the paths must not contain spaces (they don't).
-search_roots="${repo_root}/bear ${repo_root}/intercept-preload ${repo_root}/integration-tests"
+search_roots="${repo_root}/crates ${repo_root}/tests"
 
 missing=0
 checked=0
