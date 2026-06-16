@@ -1,6 +1,6 @@
 ---
 title: Signal forwarding and exit-code propagation
-status: in-progress
+status: implemented
 ---
 
 ## Intent

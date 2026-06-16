@@ -27,6 +27,9 @@ pub const ECHO_PATH: &str = env!("ECHO_PATH");
 #[cfg(has_executable_sleep)]
 #[allow(dead_code)]
 pub const SLEEP_PATH: &str = env!("SLEEP_PATH");
+#[cfg(has_executable_setsid)]
+#[allow(dead_code)]
+pub const SETSID_PATH: &str = env!("SETSID_PATH");
 #[cfg(has_executable_shell)]
 #[allow(dead_code)]
 pub const SHELL_PATH: &str = env!("SHELL_PATH");

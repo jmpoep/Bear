@@ -281,6 +281,111 @@ fn signal_tears_down_build_process_tree() -> Result<()> {
     Ok(())
 }
 
+/// A grandchild that calls `setsid` starts its own session and process
+/// group, leaving the build's process group entirely -- so `killpg` can no
+/// longer reach it. On Linux with a usable cgroup, Bear tears down the
+/// build's cgroup, which a child cannot leave unprivileged, so the detached
+/// grandchild dies too. Where no writable cgroup is available the documented
+/// process-group fallback applies and this test skips (the
+/// `signal_tears_down_build_process_tree` test covers that path).
+// Requirements: interception-signal-forwarding
+#[test]
+#[cfg(target_os = "linux")]
+#[cfg(all(has_executable_shell, has_executable_sleep, has_executable_setsid))]
+fn signal_tears_down_cgroup_even_when_grandchild_detaches() -> Result<()> {
+    if !cgroup_v2_writable() {
+        eprintln!("skipping: no writable cgroup v2 subtree; process-group fallback applies");
+        return Ok(());
+    }
+
+    let env = TestEnvironment::new("signal_tears_down_cgroup")?;
+
+    let gpid_file = env.test_dir().join("grandchild.pid");
+    // `setsid` runs the sleep in a brand-new session/group, so it escapes the
+    // build's process group -- only a cgroup kill can still reach it.
+    let script = format!(
+        "{setsid} {sleep} 60 & echo $! > {pid} ; {sleep} 60",
+        setsid = SETSID_PATH,
+        sleep = SLEEP_PATH,
+        pid = gpid_file.display(),
+    );
+
+    let mut cmd = env.command_bear();
+    cmd.current_dir(env.test_dir())
+        .args(["--output", "compile_commands.json", "--", SHELL_PATH, "-c", &script])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
+    let mut child = cmd.spawn().expect("failed to spawn bear");
+
+    // `kill -0` probes liveness without sending a signal.
+    let is_alive = |pid: i32| {
+        std::process::Command::new("kill")
+            .args(["-0", &pid.to_string()])
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false)
+    };
+
+    // Wait for the build to start and record the detached grandchild pid.
+    let gpid = {
+        let deadline = Instant::now() + std::time::Duration::from_secs(2);
+        loop {
+            if let Ok(text) = std::fs::read_to_string(&gpid_file)
+                && let Ok(pid) = text.trim().parse::<i32>()
+            {
+                break pid;
+            }
+            assert!(Instant::now() < deadline, "build never recorded its grandchild pid");
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+    };
+    assert!(is_alive(gpid), "detached grandchild should be running before the signal");
+
+    // Send SIGTERM to Bear (forwarding path, unlike Child::kill()/SIGKILL).
+    let pid = child.id().to_string();
+    let kill_status = std::process::Command::new("kill")
+        .arg("-TERM")
+        .arg(&pid)
+        .status()
+        .expect("kill -TERM command failed to run");
+    assert!(kill_status.success(), "kill -TERM reported failure");
+
+    let status = child.wait().expect("failed to wait for bear");
+    assert!(!status.success(), "bear must report non-success after signal");
+
+    // The detached grandchild must be gone: cgroup teardown reached it even
+    // though it left the process group.
+    let deadline = Instant::now() + std::time::Duration::from_secs(2);
+    while is_alive(gpid) && Instant::now() < deadline {
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    }
+    assert!(!is_alive(gpid), "detached grandchild survived -- cgroup teardown did not reach it");
+
+    Ok(())
+}
+
+/// Whether a child cgroup can be created under our own cgroup v2 -- the
+/// runtime precondition for cgroup-based teardown. Mirrors what `supervise`
+/// attempts, so the test runs only where the cgroup path is actually taken.
+#[cfg(target_os = "linux")]
+fn cgroup_v2_writable() -> bool {
+    let Ok(own) = std::fs::read_to_string("/proc/self/cgroup") else {
+        return false;
+    };
+    let Some(rel) = own.lines().find_map(|l| l.strip_prefix("0::")) else {
+        return false;
+    };
+    let dir = std::path::Path::new("/sys/fs/cgroup")
+        .join(rel.trim_start_matches('/'))
+        .join(format!("bear-test-probe-{}", std::process::id()));
+    if std::fs::create_dir(&dir).is_err() {
+        return false;
+    }
+    let ok = dir.join("cgroup.kill").exists();
+    let _ = std::fs::remove_dir(&dir);
+    ok
+}
+
 /// Block until the supervised build reports it is ready (it creates `path`),
 /// so the test signals Bear only once the build is actually running.
 #[cfg(all(target_family = "unix", has_executable_shell, has_executable_sleep))]

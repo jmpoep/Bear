@@ -74,6 +74,7 @@ fn command_from_execution(val: Execution) -> Result<std::process::Command, Super
 
 #[cfg(unix)]
 mod platform {
+    use super::cgroup;
     use super::{GroupPolicy, SuperviseError};
     use signal_hook::consts::signal::SIGCHLD;
     use signal_hook::iterator::Signals;
@@ -100,6 +101,14 @@ mod platform {
         if policy == GroupPolicy::Leader {
             command.process_group(0);
         }
+
+        // On Linux, additionally place the build in a fresh cgroup so a
+        // descendant that re-`setsid`s out of the process group is still
+        // reaped on escalation. `create_and_attach` returns `None` (and
+        // teardown falls back to the process-group `SIGKILL`) where cgroup v2
+        // is unavailable or its directory is not writable/delegated. Only the
+        // leader owns a cgroup; nested wrappers inherit it through the child.
+        let cgroup = if policy == GroupPolicy::Leader { cgroup::create_and_attach(command) } else { None };
 
         // Watch the termination signals plus SIGCHLD so the wait below blocks
         // until either the build wants to be torn down or the child exits.
@@ -145,27 +154,36 @@ mod platform {
         };
 
         match policy {
-            GroupPolicy::Leader => leader_teardown(&mut child, child_pid, signal, &executable),
+            GroupPolicy::Leader => {
+                leader_teardown(&mut child, child_pid, signal, &executable, cgroup.as_ref())
+            }
             GroupPolicy::Inherit => inherit_forward(&mut child, child_pid, signal, &executable, &mut signals),
         }
     }
 
     /// Leader: deliver the real signal to the whole group, grant a grace
-    /// window, then escalate to `SIGKILL`. The leader runs the single
+    /// window, then force whatever is still alive. The leader runs the single
     /// authoritative escalation timer for the supervision chain.
     fn leader_teardown(
         child: &mut Child,
         pgid: libc::pid_t,
         signal: libc::c_int,
         executable: &Path,
+        cgroup: Option<&cgroup::Cgroup>,
     ) -> Result<ExitStatus, SuperviseError> {
         log::debug!("Received signal {signal}, forwarding to process group {pgid}");
         send(SendTarget::Group(pgid), signal);
 
+        // Let the tree wind down on its own (run traps, drain in-flight work)
+        // before forcing it. The direct child exiting ends the grace early,
+        // but a cgroup is still swept below: a detached descendant can outlive
+        // the child that exited cleanly.
         let deadline = Instant::now() + GRACE;
+        let mut exited = None;
         loop {
             if let Some(status) = try_wait(child, executable)? {
-                return Ok(status);
+                exited = Some(status);
+                break;
             }
             if Instant::now() >= deadline {
                 break;
@@ -173,8 +191,26 @@ mod platform {
             std::thread::sleep(Duration::from_millis(10));
         }
 
-        log::debug!("Grace window elapsed, sending SIGKILL to process group {pgid}");
-        send(SendTarget::Group(pgid), libc::SIGKILL);
+        // Force anything still alive. A cgroup kill reaps the whole cgroup,
+        // including a descendant that left the process group (a daemon that
+        // called `setsid`), so it runs even when the direct child already
+        // exited. Without a cgroup, fall back to forcing the process group -
+        // but only when something is still there to force.
+        match cgroup {
+            Some(cgroup) => {
+                log::debug!("Killing build cgroup to reap the whole tree");
+                cgroup.kill();
+            }
+            None if exited.is_none() => {
+                log::debug!("Grace window elapsed, sending SIGKILL to process group {pgid}");
+                send(SendTarget::Group(pgid), libc::SIGKILL);
+            }
+            None => {}
+        }
+
+        if let Some(status) = exited {
+            return Ok(status);
+        }
 
         // Nothing left to forward; block until the direct child is reaped. A
         // blocking wait (not a poll loop) avoids burning CPU and does not hang
@@ -259,6 +295,170 @@ mod platform {
                 log::error!("Failed to forward signal {signal}: {err}");
             }
         }
+    }
+}
+
+/// Linux cgroup v2 teardown: closes the one hole process groups leave open -
+/// a descendant that calls `setsid` escapes the group but cannot leave the
+/// cgroup unprivileged, so killing the cgroup reaps it too.
+#[cfg(all(unix, target_os = "linux"))]
+mod cgroup {
+    use std::fs;
+    use std::io;
+    use std::os::fd::{AsRawFd, OwnedFd, RawFd};
+    use std::os::unix::fs::OpenOptionsExt;
+    use std::os::unix::process::CommandExt;
+    use std::path::{Path, PathBuf};
+    use std::process::Command;
+    use std::time::Duration;
+
+    /// A freshly created cgroup v2 directory owning one supervised build.
+    /// Dropping it removes the directory, so a normal build leaves nothing
+    /// behind.
+    pub(crate) struct Cgroup {
+        path: PathBuf,
+    }
+
+    /// Create a child cgroup for `command` and arrange the spawned process to
+    /// join it before `exec`. Best effort: returns `None` (caller falls back
+    /// to process-group teardown) when cgroup v2 is unavailable, not writable,
+    /// or too old to expose `cgroup.kill`.
+    pub(crate) fn create_and_attach(command: &mut Command) -> Option<Cgroup> {
+        let cgroup = Cgroup::create()?;
+        if let Err(err) = cgroup.attach(command) {
+            log::debug!("cgroup attach failed ({err}); using process-group teardown");
+            return None; // `cgroup` drops here and removes the directory
+        }
+        Some(cgroup)
+    }
+
+    impl Cgroup {
+        fn create() -> Option<Cgroup> {
+            let relative = own_v2_path()?;
+            let path = Path::new("/sys/fs/cgroup")
+                .join(relative.trim_start_matches('/'))
+                .join(format!("bear-{}", std::process::id()));
+            if let Err(err) = fs::create_dir(&path) {
+                log::debug!("cgroup unavailable ({}: {err}); using process-group teardown", path.display());
+                return None;
+            }
+            let cgroup = Cgroup { path };
+            // `cgroup.kill` exists in every cgroup since kernel 5.14; its
+            // absence means the kernel is too old for this path.
+            if !cgroup.path.join("cgroup.kill").exists() {
+                log::debug!("cgroup.kill missing (kernel too old); using process-group teardown");
+                return None; // `cgroup` drops here and removes the directory
+            }
+            Some(cgroup)
+        }
+
+        /// Move the about-to-be-spawned child into this cgroup from a
+        /// `pre_exec` hook, so its whole tree starts inside the cgroup with no
+        /// race window. The `cgroup.procs` file is opened in the parent and
+        /// only written (an async-signal-safe operation) in the child.
+        fn attach(&self, command: &mut Command) -> io::Result<()> {
+            let file = fs::OpenOptions::new()
+                .write(true)
+                .custom_flags(libc::O_CLOEXEC)
+                .open(self.path.join("cgroup.procs"))?;
+            let fd: OwnedFd = file.into();
+            // SAFETY: the closure runs in the child between fork and exec and
+            // calls only async-signal-safe libc (getpid, write).
+            unsafe {
+                command.pre_exec(move || {
+                    let pid = libc::getpid();
+                    write_pid(fd.as_raw_fd(), pid)
+                });
+            }
+            Ok(())
+        }
+
+        /// Kill every process in the cgroup with a single write. Best effort,
+        /// like signal forwarding: a failure is logged, not surfaced.
+        pub(crate) fn kill(&self) {
+            if let Err(err) = fs::write(self.path.join("cgroup.kill"), b"1") {
+                log::error!("failed to kill cgroup {}: {err}", self.path.display());
+            }
+        }
+    }
+
+    impl Drop for Cgroup {
+        fn drop(&mut self) {
+            // A cgroup directory is removable only once empty; killed
+            // processes leave it as init reaps them, which can lag under load,
+            // so retry up to ~500ms before giving up and leaving the dir.
+            for _ in 0..100 {
+                match fs::remove_dir(&self.path) {
+                    Ok(()) => return,
+                    Err(err) if err.raw_os_error() == Some(libc::EBUSY) => {
+                        std::thread::sleep(Duration::from_millis(5));
+                    }
+                    Err(err) => {
+                        log::debug!("could not remove cgroup {}: {err}", self.path.display());
+                        return;
+                    }
+                }
+            }
+            log::debug!("cgroup {} still busy after retries; leaving it", self.path.display());
+        }
+    }
+
+    /// Our own cgroup v2 path, read from the `0::<path>` line of
+    /// `/proc/self/cgroup`. `None` on a host without a unified hierarchy.
+    fn own_v2_path() -> Option<String> {
+        let content = fs::read_to_string("/proc/self/cgroup").ok()?;
+        content.lines().find_map(|line| line.strip_prefix("0::").map(str::to_string))
+    }
+
+    /// Write a pid as decimal bytes to `fd` without allocating, so it is safe
+    /// to call from the post-fork child.
+    fn write_pid(fd: RawFd, pid: libc::pid_t) -> io::Result<()> {
+        let mut buf = [0u8; 20];
+        let mut at = buf.len();
+        let mut value = pid as u64;
+        if value == 0 {
+            at -= 1;
+            buf[at] = b'0';
+        }
+        while value > 0 {
+            at -= 1;
+            buf[at] = b'0' + (value % 10) as u8;
+            value /= 10;
+        }
+        let bytes = &buf[at..];
+        let mut written = 0;
+        while written < bytes.len() {
+            // SAFETY: async-signal-safe write to a valid, inherited fd.
+            let rc = unsafe { libc::write(fd, bytes[written..].as_ptr().cast(), bytes.len() - written) };
+            if rc < 0 {
+                let err = io::Error::last_os_error();
+                // A signal interrupting the write must not fail the spawn:
+                // returning Err here aborts the whole supervised run.
+                if err.raw_os_error() == Some(libc::EINTR) {
+                    continue;
+                }
+                return Err(err);
+            }
+            written += rc as usize;
+        }
+        Ok(())
+    }
+}
+
+/// Non-Linux unix has no cgroups; teardown stays process-group only. The type
+/// is uninhabited so the leader-teardown signature is uniform across unix.
+#[cfg(all(unix, not(target_os = "linux")))]
+mod cgroup {
+    pub(crate) enum Cgroup {}
+
+    impl Cgroup {
+        pub(crate) fn kill(&self) {
+            match *self {}
+        }
+    }
+
+    pub(crate) fn create_and_attach(_command: &mut std::process::Command) -> Option<Cgroup> {
+        None
     }
 }
 

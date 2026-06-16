@@ -1,7 +1,6 @@
 # Process-tree teardown and event-driven supervision
 
-Status: proposed alongside `plan.md`; finalize on approval of the
-`interception-signal-forwarding` update.
+Status: accepted; Stage 1 and Stage 2 implemented.
 
 ## Context
 
@@ -54,14 +53,18 @@ Two further forces shaped the design:
 
 ## Decision
 
-- **Two-stage tree teardown.** *Stage 1* (now): `process_group(0)` +
-  `killpg`, behind a `cfg`-selected `platform` submodule (`configure` /
-  `terminate` / `wait`) exposing one identical surface per platform.
-  *Stage 2* (later):
-  cgroup v2 `cgroup.kill` with a Stage 1 fallback, to close the
-  `setsid`-escape hole. Both slot in behind the same `platform` functions
-  without changing `supervise()`. A Windows Job Object is a possible later
-  third path; for now non-unix keeps single-process `child.kill()`.
+- **Two-stage tree teardown.** *Stage 1*: `process_group(0)` + `killpg` in
+  the `cfg`-selected unix `platform` module. *Stage 2*: a Linux-gated
+  `cgroup` module that places the build in a fresh cgroup v2 (the child
+  joins via a `pre_exec` write to `cgroup.procs`) and, on teardown, writes
+  `cgroup.kill` to reap the whole cgroup - including a descendant that
+  `setsid`s out of the process group. Stage 2 is best-effort: when cgroup v2
+  is unavailable or its directory is not writable/delegated it returns
+  nothing and teardown falls back to the Stage 1 process-group `SIGKILL`.
+  Both still go through the leader's single grace-then-force escalation; the
+  graceful real-signal phase stays group-based because `cgroup.kill` can only
+  `SIGKILL`. A Windows Job Object is a possible later third path; non-unix
+  keeps single-process `child.kill()`.
 - **Only the outermost supervisor groups.** The driver creates the group
   and owns the authoritative `killpg`; nested wrappers inherit the group
   and merely forward, so a single top-level `killpg` reaches the whole
@@ -87,14 +90,21 @@ Two further forces shaped the design:
   makes reliable tree-kill and real-signal forwarding possible and fixes
   trap support in the non-tty (CI `SIGTERM`) case; the trade-off is that any
   gap in Bear's forwarding loses the tty backstop. Accepted.
-- After Stage 1, one hole remains: a child that `setsid`s away to daemonize.
-  Closing it is exactly what Stage 2 (cgroups) is for, and the trigger to
-  schedule it.
+- Stage 2 closes the `setsid`-escape hole on Linux hosts with a usable
+  cgroup; where none is available the hole remains and the documented
+  process-group fallback applies. A descendant that detaches gets no grace
+  window (it left the group the graceful signal targets) - only the final
+  `cgroup.kill`. Accepted: a daemon that deliberately detaches forfeits the
+  graceful wind-down.
+- Each supervised build creates and removes one cgroup directory; a normal
+  build leaves nothing behind, and the kill path's directory cleanup retries
+  briefly because killed processes are reaped asynchronously by init.
 - The "only the outermost supervisor groups" rule keeps wrapper-mode nesting
   correct and keeps the wrapper's supervision simple (forward + propagate
-  exit code).
-- The `platform` seam keeps cgroups, Job Objects, and pidfd as drop-in
-  upgrades rather than rewrites.
+  exit code); the wrapper inherits the leader's cgroup through the child, so
+  one `cgroup.kill` reaches the whole tree.
+- The cgroup stays a Linux-only, runtime-detected layer; a Windows Job
+  Object and a pidfd-based wait remain possible later additions.
 
 ## Rejected: unifying the probe watchdog on `process_group(0)`
 
