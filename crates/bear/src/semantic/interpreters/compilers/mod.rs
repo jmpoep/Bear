@@ -31,24 +31,32 @@ pub struct CompilerInterpreter {
 }
 
 impl CompilerInterpreter {
-    /// Builds a fully configured compiler interpreter with every supported
-    /// compiler type registered. Response-file inlining is disabled and
-    /// environment flags are enabled; override with [`Self::with_response_files`]
-    /// and [`Self::with_environment`].
-    pub fn new_with_config(compilers: &[crate::config::Compiler]) -> Self {
+    /// Builds a fully configured compiler interpreter from the compiler hints
+    /// and the argument-formatting options (`format.arguments`): response-file
+    /// inlining and environment-flag folding. Registers every supported
+    /// compiler type exactly once.
+    pub fn new_with_format(
+        compilers: &[crate::config::Compiler],
+        arguments: &crate::config::ArgumentsFormat,
+    ) -> Self {
         let mut result = Self {
             recognizer: CompilerRecognizer::new_with_config(compilers),
             interpreters: HashMap::new(),
-            inline_response_files: false,
+            inline_response_files: arguments.from_response_files,
         };
-        result.register_all(true);
+        result.register_all(arguments.from_environment);
         result
     }
 
+    /// Convenience constructor with the default argument handling (response-file
+    /// inlining off, environment-flag folding on). Used by [`Default`] and tests.
+    pub fn new_with_config(compilers: &[crate::config::Compiler]) -> Self {
+        Self::new_with_format(compilers, &crate::config::ArgumentsFormat::default())
+    }
+
     /// Registers every supported compiler type, threading `from_environment`
-    /// into each per-family interpreter. Replaces any existing registrations.
+    /// into each per-family interpreter.
     fn register_all(&mut self, from_environment: bool) {
-        self.interpreters.clear();
         self.register(CompilerType::Gcc, flag_based::gcc(from_environment));
         self.register(CompilerType::Clang, flag_based::clang(from_environment));
         self.register(CompilerType::Flang, flag_based::flang(from_environment));
@@ -62,20 +70,6 @@ impl CompilerInterpreter {
         self.register(CompilerType::Armclang, flag_based::armclang(from_environment));
         self.register(CompilerType::IbmXl, flag_based::ibm_xl(from_environment));
         self.register(CompilerType::Vala, flag_based::vala(from_environment));
-    }
-
-    /// Enables or disables inlining `@file` response-file references into the
-    /// recognized arguments (`format.arguments.from_response_files`).
-    pub fn with_response_files(mut self, enabled: bool) -> Self {
-        self.inline_response_files = enabled;
-        self
-    }
-
-    /// Enables or disables folding compiler environment variables into the
-    /// recognized arguments (`format.arguments.from_environment`).
-    pub fn with_environment(mut self, enabled: bool) -> Self {
-        self.register_all(enabled);
-        self
     }
 
     /// Registers an interpreter for a specific compiler type, wrapping it
@@ -578,7 +572,9 @@ mod tests {
         /// Requirements: output-arguments-from-environment
         #[test]
         fn environment_disabled_suppresses_injected_flags() {
-            let sut = CompilerInterpreter::new_with_config(&[]).with_environment(false);
+            let arguments =
+                crate::config::ArgumentsFormat { from_response_files: false, from_environment: false };
+            let sut = CompilerInterpreter::new_with_format(&[], &arguments);
             let cpath = create_path_string(&["/usr/include", "/opt/include"]);
             let mut env = HashMap::new();
             env.insert("CPATH", cpath.as_str());
