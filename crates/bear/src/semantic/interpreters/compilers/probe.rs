@@ -337,11 +337,17 @@ mod unix {
             if haystack.contains("clang version") {
                 return Some(CompilerType::Clang);
             }
-            // GNU gcc prints "gcc (GCC) X.Y.Z" on the first line and
-            // "Copyright (C) ... Free Software Foundation, Inc." on a later line.
-            // Require both markers to avoid matching anything that happens to
-            // mention "gcc" (e.g. a wrapper script's banner).
-            if haystack.contains("(GCC)") && haystack.contains("Free Software Foundation") {
+            // GNU gcc prints a "Copyright (C) ... Free Software Foundation,
+            // Inc." line in every build. The leading "(GCC)" vendor tag is
+            // NOT reliable: distro and BSD-ports builds rewrite it to their
+            // own tag ("(Alpine 15.2.0)", "(Ubuntu 13.3.0-...)", "(FreeBSD
+            // Ports Collection)"), and when gcc is invoked as `cc` -- the
+            // case this probe exists for -- the string "gcc" does not appear
+            // at all. The FSF copyright is the only portable GCC signal.
+            // Clang is excluded above (it prints LLVM license text, never the
+            // FSF copyright), so this does not misclassify clang as gcc. See
+            // issue #711.
+            if haystack.contains("Free Software Foundation") {
                 return Some(CompilerType::Gcc);
             }
         }
@@ -373,10 +379,36 @@ mod unix {
         }
 
         #[test]
-        fn classifies_gcc() {
-            let stdout = "gcc (GCC) 13.2.1 20231011 (Red Hat 13.2.1-4)\n\
-                          Copyright (C) 2023 Free Software Foundation, Inc.\n";
-            assert_eq!(classify_version_output(stdout, ""), Some(CompilerType::Gcc));
+        fn classifies_gcc_across_vendor_builds() {
+            // The leading "(...)" vendor tag varies per distro and BSD ports;
+            // when gcc is invoked as `cc` the string "gcc" is absent entirely.
+            // The FSF copyright line is the only marker common to every build,
+            // so every one of these must classify as GCC. See issue #711.
+            let cases = [
+                // Upstream FSF / Red Hat (the originally-recognized form).
+                "gcc (GCC) 13.2.1 20231011 (Red Hat 13.2.1-4)\n\
+                 Copyright (C) 2023 Free Software Foundation, Inc.\n",
+                // Alpine Linux (the reported case).
+                "gcc (Alpine 15.2.0) 15.2.0\n\
+                 Copyright (C) 2025 Free Software Foundation, Inc.\n",
+                // Ubuntu.
+                "gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0\n\
+                 Copyright (C) 2023 Free Software Foundation, Inc.\n",
+                // FreeBSD ports.
+                "gcc14 (FreeBSD Ports Collection) 14.2.0\n\
+                 Copyright (C) 2024 Free Software Foundation, Inc.\n",
+                // gcc invoked as `cc`: no "gcc" token anywhere in the output.
+                "cc (Debian 12.2.0-14) 12.2.0\n\
+                 Copyright (C) 2022 Free Software Foundation, Inc.\n",
+            ];
+
+            for stdout in cases {
+                assert_eq!(
+                    classify_version_output(stdout, ""),
+                    Some(CompilerType::Gcc),
+                    "expected GCC for output: {stdout:?}"
+                );
+            }
         }
 
         #[test]
@@ -429,13 +461,15 @@ mod unix {
 
             #[test]
             fn classifies_a_script_that_emits_gcc_signature() {
+                // Alpine-style signature: a vendor tag instead of "(GCC)".
+                // See issue #711.
                 let dir = tempfile::tempdir().unwrap();
                 let script = write_script(
                     dir.path(),
                     "fake-gcc",
                     "#!/bin/sh\n\
-                     echo 'gcc (GCC) 13.2.1 20231011'\n\
-                     echo 'Copyright (C) 2023 Free Software Foundation, Inc.'\n",
+                     echo 'gcc (Alpine 15.2.0) 15.2.0'\n\
+                     echo 'Copyright (C) 2025 Free Software Foundation, Inc.'\n",
                 );
 
                 assert_eq!(VersionProbe::new().probe(&script), Some(CompilerType::Gcc));
