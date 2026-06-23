@@ -391,7 +391,10 @@ build system expects them.
 Bear does not parse or rewrite them; they reach the compiler untouched.
 .SS Vala Projects
 Bear records \f[CR]valac\f[R] invocations, producing one entry per
-\f[CR].vala\f[R] (or \f[CR].gs\f[R]) source.
+\f[CR]valac\f[R] invocation (valac compiles all of a target\(cqs
+\f[CR].vala\f[R]/\f[CR].gs\f[R] sources together as one translation
+unit, so the entry\(cqs \f[CR]file\f[R] is the first source and every
+source is kept in the command).
 Two things are worth knowing:
 .IP \(bu 2
 \f[B]vala\-language\-server might require the command\-string form.\f[R]

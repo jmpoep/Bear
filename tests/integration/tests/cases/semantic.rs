@@ -777,3 +777,57 @@ fn vala_default_mode_produces_single_entry() -> Result<()> {
 
     Ok(())
 }
+
+// Requirements: output-compilation-entries
+//
+// valac compiles all of a target's `.vala` sources together as one translation
+// unit and produces one combined output. Bear must therefore emit exactly ONE
+// entry per `valac` invocation, not one per source, with `file` set to the first
+// source and every source retained in the command. This is the regression that
+// proves the single-translation-unit behaviour; the single-source tests above
+// are only N=1 guards. `bear semantic` runs the interpreter without executing
+// valac, so no Vala toolchain is required.
+#[test]
+fn vala_multiple_sources_produce_single_entry() -> Result<()> {
+    let env = TestEnvironment::new("vala_multiple_sources")?;
+
+    let temp_dir = env.test_dir().to_str().unwrap();
+
+    let event = json!({
+        "executable": "valac",
+        "arguments": [
+            "valac", "--pkg", "gio-2.0", "--library", "foo",
+            "a.vala", "b.vala", "c.vala"
+        ],
+        "working_dir": temp_dir,
+        "environment": {}
+    });
+
+    env.create_source_files(&[
+        ("events.json", &event.to_string()),
+        ("a.vala", "void a() { }"),
+        ("b.vala", "void b() { }"),
+        ("c.vala", "void main() { }"),
+    ])?;
+
+    env.run_bear_success(&["semantic", "--input", "events.json", "--output", "compile_commands.json"])?;
+
+    let db = env.load_compilation_database("compile_commands.json")?;
+    // Three sources, but valac is single-translation-unit: exactly one entry,
+    // keyed on the first source, with all three sources retained.
+    db.assert_count(1)?;
+    db.assert_contains(&compilation_entry!(
+        file: "a.vala".to_string(),
+        directory: temp_dir.to_string(),
+        arguments: vec![
+            "valac".to_string(),
+            "--pkg".to_string(), "gio-2.0".to_string(),
+            "--library".to_string(), "foo".to_string(),
+            "a.vala".to_string(),
+            "b.vala".to_string(),
+            "c.vala".to_string(),
+        ]
+    ))?;
+
+    Ok(())
+}

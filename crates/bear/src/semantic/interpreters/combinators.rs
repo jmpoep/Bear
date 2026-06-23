@@ -115,7 +115,7 @@ mod test {
     }
 
     fn command_fixture() -> RecognizeResult {
-        RecognizeResult::Recognized(Command::new(PathBuf::new(), PathBuf::new(), vec![]))
+        RecognizeResult::Recognized(Command::new(PathBuf::new(), PathBuf::new(), vec![], true))
     }
 
     #[test]

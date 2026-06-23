@@ -25,6 +25,17 @@ result values, inheritance, environment variables).
 3. `cargo build` regenerates tables automatically
 4. `cargo test` validates sorting and invariants
 
+## Properties set in the factory, not the YAML
+
+A few per-interpreter properties are consumed at the converter (post-parse),
+not at parse time, so they are hard-coded in the factory functions in
+`flag_based.rs` rather than in these YAML files:
+
+- `separable_sources` (default `true`): set to `false` for a
+  single-translation-unit compiler like `valac`, which compiles all of a
+  target's sources together and yields one combined entry per invocation
+  instead of one per source. See `README.md` for details.
+
 ## Common mistakes
 
 - Forgetting to run `cargo build` after YAML edits (stale generated code)

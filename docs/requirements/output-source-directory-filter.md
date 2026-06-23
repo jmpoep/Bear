@@ -18,6 +18,11 @@ in the output based on the source file path.
   filtering)
 - When rules are configured, each source file path is evaluated against
   the rule list
+- An entry that represents a whole invocation as a single translation
+  unit (see `output-compilation-entries`) carries one representative
+  source in its `file` field; it is filtered as a unit by that single
+  representative path, not per-source. You cannot include half of one
+  compilation unit and exclude the other half
 - Rules are evaluated in order; the **last** matching rule's action wins
 - If no rule matches a source file, the file is **included** by default
 - Path matching uses `Path::starts_with()`, which operates on path
@@ -111,6 +116,12 @@ Given a rule with an empty path:
   same location. Users who need symlink-aware filtering should use the
   `canonical` path format (`output-path-format`) so that file paths are resolved
   before matching.
+- A single-translation-unit invocation whose sources straddle an included
+  and an excluded directory is filtered solely by its representative
+  source's path. The whole unit is kept or dropped together. The input
+  that would expose this (one target whose sources span both sides of a
+  rule boundary) does not occur in real builds, so there is no dedicated
+  test and no behaviour change for the common case.
 
 ## Rationale
 

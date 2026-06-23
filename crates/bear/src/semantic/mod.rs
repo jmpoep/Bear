@@ -61,6 +61,14 @@ pub struct Command {
     pub working_dir: PathBuf,
     pub executable: PathBuf,
     pub arguments: Vec<Argument>,
+    /// Whether the invocation's sources are separable translation units.
+    ///
+    /// `true` (the default) for compilers like GCC/Clang where each source
+    /// compiles on its own; the converter fans the invocation into one entry
+    /// per source. `false` for single-translation-unit compilers (e.g. valac),
+    /// where all sources compile together and the converter emits exactly one
+    /// combined entry per invocation.
+    pub separable_sources: bool,
 }
 
 /// A compiler command-line argument with semantic classification.
@@ -152,7 +160,12 @@ pub enum CompilerPass {
 }
 
 impl Command {
-    pub fn new(working_dir: PathBuf, executable: PathBuf, arguments: Vec<Argument>) -> Self {
-        Self { working_dir, executable, arguments }
+    pub fn new(
+        working_dir: PathBuf,
+        executable: PathBuf,
+        arguments: Vec<Argument>,
+        separable_sources: bool,
+    ) -> Self {
+        Self { working_dir, executable, arguments, separable_sources }
     }
 }

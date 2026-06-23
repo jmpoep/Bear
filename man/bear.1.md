@@ -326,8 +326,11 @@ compiler untouched.
 
 ## Vala Projects
 
-Bear records `valac` invocations, producing one entry per `.vala` (or
-`.gs`) source. Two things are worth knowing:
+Bear records `valac` invocations, producing one entry per `valac`
+invocation (valac compiles all of a target's `.vala`/`.gs` sources
+together as one translation unit, so the entry's `file` is the first
+source and every source is kept in the command). Two things are worth
+knowing:
 
 - **vala-language-server might require the command-string form.** It
   reads the `command` field and ignores the `arguments` array, so build

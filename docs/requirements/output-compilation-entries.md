@@ -26,7 +26,11 @@ per-compiler interpreters.
 
 ## Acceptance criteria
 
-### One entry per compilable source
+### One entry per compilable source (separable sources)
+
+For compilers whose sources are separable translation units -- each
+source compiles on its own and contributes an independent object
+(GCC, Clang, the Fortran and CUDA families, MSVC, and the like):
 
 - An invocation that names N source files produces exactly N entries
 - Recognized source extensions include `.c`, `.cc`, `.cpp`, `.cxx`,
@@ -40,6 +44,31 @@ per-compiler interpreters.
   (`cc -c foo.c foo.c`), one entry is produced per positional
   occurrence; deduplication is then the responsibility of
   `output-duplicate-detection`
+
+### One entry per invocation (single-translation-unit compilers)
+
+Some compilers treat all of an invocation's sources as a single
+translation unit: they parse the sources together and produce one
+combined output rather than one object per source. The Vala compiler
+is the motivating example -- it compiles every `.vala`/`.gs` source of
+a target together and produces one library/binding. For such a
+compiler:
+
+- An invocation that names N source files produces exactly ONE entry,
+  regardless of N
+- That entry's `file` field is the first source in argument order
+- All N sources are retained in the entry's argument list (they are
+  not stripped as siblings, because they are not separate units)
+- Link-only flag stripping (below) still applies
+- If the invocation compiles no source at all, it produces no entry,
+  exactly as for the separable case
+
+Because the entire invocation collapses to one entry keyed on its
+first source, duplicate detection (`output-duplicate-detection`) sees
+one producer per invocation rather than N near-identical producers;
+this is the intended behaviour for a single-translation-unit compiler
+and avoids emitting several entries that all claim to produce the same
+combined output.
 
 ### Zero entries for invocations that do not compile a source
 
@@ -150,6 +179,16 @@ Given a build that compiles a single source file:
 > When the user runs `bear -- cc -c src.c`,
 > then `compile_commands.json` contains exactly one entry,
 > with `file` set to `src.c` and the compiler at `arguments[0]`.
+
+Given a build that runs a single-translation-unit compiler over two or
+more sources in one invocation (for example `valac src1.vala
+src2.vala`):
+
+> When the user runs Bear wrapping that build,
+> then `compile_commands.json` contains exactly one entry for that
+> invocation,
+> with `file` set to the first source (`src1.vala`),
+> and all of the sources appearing in that entry's `arguments`.
 
 Given a build that runs `cc -o a.out src1.c src2.c src3.c`:
 

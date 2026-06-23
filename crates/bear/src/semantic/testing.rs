@@ -13,6 +13,7 @@ impl Command {
         Self {
             working_dir: PathBuf::from(working_dir),
             executable: PathBuf::from(executable),
+            separable_sources: true,
             arguments: arguments
                 .into_iter()
                 .map(|(kind, args)| match kind {

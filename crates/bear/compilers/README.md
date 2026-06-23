@@ -206,6 +206,23 @@ inherited ones matched by variable name.
 Compilers that do not read GCC variables (e.g., NVIDIA HPC SDK) must not
 extend GCC and will have an empty environment table.
 
+## Per-interpreter properties set outside the YAML
+
+Most compiler behaviour is data-driven from these YAML files, but a few
+properties are consumed *after* parsing (at the converter) rather than at
+parse time, so they live in the interpreter factory functions in
+`crates/bear/src/semantic/interpreters/compilers/flag_based.rs`, not in
+the YAML schema:
+
+- `separable_sources` -- whether each source in an invocation is a
+  separable translation unit. Default `true` (GCC/Clang/etc.: one entry
+  per source). `valac` sets it to `false` because it compiles all of a
+  target's sources together as a single translation unit, so Bear emits
+  one combined entry per invocation. If a second single-translation-unit
+  compiler ever appears (Swift whole-module, rustc-crate), set the same
+  flag in its factory; promote it to the YAML/codegen path only if the
+  list grows.
+
 ## Adding a new compiler
 
 1. Create a new YAML file in this directory (e.g., `mycompiler.yaml`)

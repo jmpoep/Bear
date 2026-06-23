@@ -88,36 +88,68 @@ impl CommandConverter {
         // Create output file if needed
         let output_file = self.create_output_file(&formatted_directory, &cmd.arguments);
 
-        // Create one entry per source argument (only non-binary source files)
-        cmd.arguments
-            .iter()
-            .enumerate()
-            .filter(|(_, arg)| matches!(arg.kind(), ArgumentKind::Source { binary: false }))
-            .filter_map(|(source_idx, source_arg)| {
-                // Get and format source file
-                let path_updater: &dyn Fn(&Path) -> Cow<Path> = &|path: &Path| Cow::Borrowed(path);
-                let source_file_path = source_arg.as_file(path_updater)?;
-                let formatted_source_file = self.format_source_file(&formatted_directory, &source_file_path);
+        if cmd.separable_sources {
+            // Create one entry per source argument (only non-binary source files)
+            cmd.arguments
+                .iter()
+                .enumerate()
+                .filter(|(_, arg)| matches!(arg.kind(), ArgumentKind::Source { binary: false }))
+                .filter_map(|(source_idx, source_arg)| {
+                    self.build_entry(cmd, source_arg, Some(source_idx), &formatted_directory, &output_file)
+                })
+                .collect()
+        } else {
+            // Single-translation-unit compiler (e.g. valac): the whole invocation
+            // collapses to one entry whose `file` is the first compilable source.
+            // All sources are kept in the arguments (no sibling stripping).
+            let first_source =
+                cmd.arguments.iter().find(|arg| matches!(arg.kind(), ArgumentKind::Source { binary: false }));
+            let Some(source_arg) = first_source else {
+                // No compilable source; should_skip_entry_generation already
+                // covers this, but keep the guard local to the branch.
+                return vec![];
+            };
 
-                let command_args = self.build_command_args_for_source(cmd, source_idx, &formatted_directory);
+            self.build_entry(cmd, source_arg, None, &formatted_directory, &output_file).into_iter().collect()
+        }
+    }
 
-                if self.format.use_array_format {
-                    Some(Entry::with_arguments(
-                        formatted_source_file,
-                        command_args,
-                        &formatted_directory,
-                        output_file.as_ref(),
-                    ))
-                } else {
-                    Some(Entry::with_command(
-                        formatted_source_file,
-                        command_args,
-                        &formatted_directory,
-                        output_file.as_ref(),
-                    ))
-                }
-            })
-            .collect()
+    /// Builds a single compilation database entry for `source_arg`.
+    ///
+    /// `selected` controls which sources are kept in the arguments:
+    /// `Some(idx)` keeps only the source at that index (separable compilers,
+    /// one entry per source), `None` keeps every source (single-translation-unit
+    /// compilers, one combined entry).
+    fn build_entry(
+        &self,
+        cmd: &Command,
+        source_arg: &Argument,
+        selected: Option<usize>,
+        formatted_directory: &Path,
+        output_file: &Option<PathBuf>,
+    ) -> Option<Entry> {
+        // Get and format source file
+        let path_updater: &dyn Fn(&Path) -> Cow<Path> = &|path: &Path| Cow::Borrowed(path);
+        let source_file_path = source_arg.as_file(path_updater)?;
+        let formatted_source_file = self.format_source_file(formatted_directory, &source_file_path);
+
+        let command_args = self.build_command_args(cmd, selected, formatted_directory);
+
+        if self.format.use_array_format {
+            Some(Entry::with_arguments(
+                formatted_source_file,
+                command_args,
+                formatted_directory,
+                output_file.as_ref(),
+            ))
+        } else {
+            Some(Entry::with_command(
+                formatted_source_file,
+                command_args,
+                formatted_directory,
+                output_file.as_ref(),
+            ))
+        }
     }
 
     /// Formats the working directory path.
@@ -170,22 +202,30 @@ impl CommandConverter {
         }
     }
 
-    /// Builds command arguments for a specific source file.
+    /// Builds command arguments for an entry.
     ///
     /// This method constructs the command arguments list that includes the executable,
-    /// all non-source arguments, and the specific source file.
-    /// It ensures that the source file is placed in the correct position relative to output arguments.
-    fn build_command_args_for_source(
+    /// all non-source arguments, and the selected source file(s).
+    /// It ensures that source files are placed in the correct position relative to output arguments.
+    ///
+    /// `selected` is `Some(idx)` for separable compilers (keep only the source at
+    /// `idx`, strip the siblings) or `None` for single-translation-unit compilers
+    /// (keep every source).
+    fn build_command_args(
         &self,
         cmd: &Command,
-        source_arg_idx: usize,
+        selected: Option<usize>,
         formatted_directory: &Path,
     ) -> Vec<String> {
         let mut command_args = vec![];
 
         for (idx, arg) in cmd.arguments.iter().enumerate() {
-            // Skip other source arguments (not the one we're building for)
-            if matches!(arg.kind(), ArgumentKind::Source { .. }) && idx != source_arg_idx {
+            // For separable compilers, skip the other source arguments (keep only
+            // the one we are building for). For combined compilers (`None`), keep all.
+            if let Some(source_arg_idx) = selected
+                && matches!(arg.kind(), ArgumentKind::Source { .. })
+                && idx != source_arg_idx
+            {
                 continue;
             }
 
@@ -1121,6 +1161,211 @@ mod tests {
         assert!(entry.directory.is_absolute(), "directory should be absolute: {:?}", entry.directory);
         // File should be relative
         assert!(!entry.file.is_absolute(), "file should be relative: {:?}", entry.file);
+    }
+
+    /// Builds a `Command` with `separable_sources` toggled off, mirroring what
+    /// the valac interpreter produces. `from_strings` always sets the flag to
+    /// `true`, so combined-path tests flip it here.
+    fn combined(mut cmd: Command) -> Command {
+        cmd.separable_sources = false;
+        cmd
+    }
+
+    // Requirements: output-compilation-entries
+    #[test]
+    fn test_combined_sources_produce_single_entry() {
+        let sut = {
+            let format = Format {
+                paths: PathFormat::default(),
+                entries: EntryFormat { use_array_format: true, include_output_field: false },
+                arguments: ArgumentsFormat::default(),
+            };
+            CommandConverter::new(format)
+        };
+
+        // valac-style: two sources compiled as one translation unit, producing a
+        // library/binding. `--library`/`--vapi` classify as `none`, not stripped.
+        let command = combined(Command::from_strings(
+            "/home/user",
+            "valac",
+            vec![
+                (ArgumentKind::Compiler, vec!["valac"]),
+                (ArgumentKind::Other(PassEffect::None), vec!["--library", "foo"]),
+                (ArgumentKind::Source { binary: false }, vec!["a.vala"]),
+                (ArgumentKind::Source { binary: false }, vec!["b.vala"]),
+                (ArgumentKind::Source { binary: false }, vec!["c.vala"]),
+            ],
+        ));
+
+        let result = sut.convert(&command);
+
+        // Exactly one entry, file == first source, all three sources retained.
+        assert_eq!(result.len(), 1);
+        let entry = &result[0];
+        assert_eq!(entry.file, PathBuf::from("a.vala"));
+
+        let args_str = entry.arguments.join(" ");
+        assert!(args_str.contains("a.vala"), "first source must be present: {}", args_str);
+        assert!(args_str.contains("b.vala"), "sibling source must be retained: {}", args_str);
+        assert!(args_str.contains("c.vala"), "sibling source must be retained: {}", args_str);
+        assert!(args_str.contains("--library"), "non-link flag must be retained: {}", args_str);
+        assert!(args_str.contains("foo"), "--library value must be retained: {}", args_str);
+    }
+
+    // Requirements: output-compilation-entries
+    #[test]
+    fn test_combined_sources_emit_command_string_form() {
+        // vala-language-server reads only the command-string form, so guard that
+        // a combined entry serializes its single command (with every source) when
+        // use_array_format is false.
+        let sut = {
+            let format = Format {
+                paths: PathFormat::default(),
+                entries: EntryFormat { use_array_format: false, include_output_field: false },
+                arguments: ArgumentsFormat::default(),
+            };
+            CommandConverter::new(format)
+        };
+
+        let command = combined(Command::from_strings(
+            "/home/user",
+            "valac",
+            vec![
+                (ArgumentKind::Compiler, vec!["valac"]),
+                (ArgumentKind::Other(PassEffect::None), vec!["--library", "foo"]),
+                (ArgumentKind::Source { binary: false }, vec!["a.vala"]),
+                (ArgumentKind::Source { binary: false }, vec!["b.vala"]),
+            ],
+        ));
+
+        let result = sut.convert(&command);
+
+        // Exactly one entry in command-string form: `command` set, `arguments` empty.
+        assert_eq!(result.len(), 1);
+        let entry = &result[0];
+        assert_eq!(entry.file, PathBuf::from("a.vala"));
+        assert!(entry.arguments.is_empty(), "command form must leave arguments empty");
+        assert!(entry.command.contains("a.vala"), "command must keep first source: {}", entry.command);
+        assert!(entry.command.contains("b.vala"), "command must keep sibling source: {}", entry.command);
+        assert!(entry.command.contains("--library"), "command must keep non-link flag: {}", entry.command);
+    }
+
+    // Requirements: output-compilation-entries
+    #[test]
+    fn test_combined_sources_strip_link_only_flags() {
+        let sut = {
+            let format = Format {
+                paths: PathFormat::default(),
+                entries: EntryFormat { use_array_format: true, include_output_field: false },
+                arguments: ArgumentsFormat::default(),
+            };
+            CommandConverter::new(format)
+        };
+
+        let command = combined(Command::from_strings(
+            "/home/user",
+            "valac",
+            vec![
+                (ArgumentKind::Compiler, vec!["valac"]),
+                (ArgumentKind::Source { binary: false }, vec!["a.vala"]),
+                (ArgumentKind::Source { binary: false }, vec!["b.vala"]),
+                (ArgumentKind::Other(PassEffect::Configures(CompilerPass::Linking)), vec!["-L/usr/lib"]),
+            ],
+        ));
+
+        let result = sut.convert(&command);
+
+        assert_eq!(result.len(), 1);
+        let args_str = result[0].arguments.join(" ");
+        assert!(args_str.contains("a.vala"));
+        assert!(args_str.contains("b.vala"));
+        assert!(!args_str.contains("-L/usr/lib"), "link-only flag must be stripped: {}", args_str);
+    }
+
+    // Requirements: output-compilation-entries
+    #[test]
+    fn test_separable_sources_remain_one_entry_per_source() {
+        // Regression guard: the default separable path still fans out.
+        let sut = {
+            let format = Format::default();
+            CommandConverter::new(format)
+        };
+
+        let command = Command::from_strings(
+            "/home/user",
+            "/usr/bin/g++",
+            vec![
+                (ArgumentKind::Other(PassEffect::StopsAt(CompilerPass::Compiling)), vec!["-c"]),
+                (ArgumentKind::Source { binary: false }, vec!["file1.cpp"]),
+                (ArgumentKind::Source { binary: false }, vec!["file2.cpp"]),
+            ],
+        );
+
+        let result = sut.convert(&command);
+
+        assert_eq!(result.len(), 2);
+        assert_eq!(result[0].file, PathBuf::from("file1.cpp"));
+        assert_eq!(result[1].file, PathBuf::from("file2.cpp"));
+    }
+
+    // Requirements: output-compilation-entries
+    #[test]
+    fn test_combined_sources_skip_leading_binary_input() {
+        let sut = {
+            let format = Format::default();
+            CommandConverter::new(format)
+        };
+
+        // A binary input appears before the first compilable source: the
+        // representative `file` must be the source, and the binary input is not
+        // emitted as its own entry.
+        let command = combined(Command::from_strings(
+            "/home/user",
+            "valac",
+            vec![
+                (ArgumentKind::Compiler, vec!["valac"]),
+                (ArgumentKind::Source { binary: true }, vec!["prebuilt.o"]),
+                (ArgumentKind::Source { binary: false }, vec!["a.vala"]),
+                (ArgumentKind::Source { binary: false }, vec!["b.vala"]),
+            ],
+        ));
+
+        let result = sut.convert(&command);
+
+        // Exactly one entry: the binary input is not promoted to its own entry,
+        // and the representative `file` is the first compilable source.
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].file, PathBuf::from("a.vala"));
+        // Combined mode keeps every input in the command, including the binary one
+        // (no sibling stripping); only the entry count collapses to one.
+        let args_str = result[0].arguments.join(" ");
+        assert!(args_str.contains("prebuilt.o"), "binary input must remain in args: {}", args_str);
+        assert!(args_str.contains("a.vala"), "first source must be present: {}", args_str);
+        assert!(args_str.contains("b.vala"), "sibling source must be present: {}", args_str);
+    }
+
+    // Requirements: output-compilation-entries
+    #[test]
+    fn test_combined_sources_with_no_compilable_source_produce_no_entry() {
+        let sut = {
+            let format = Format::default();
+            CommandConverter::new(format)
+        };
+
+        // Only binary inputs: a pure link step yields no entry, same as separable.
+        let command = combined(Command::from_strings(
+            "/home/user",
+            "valac",
+            vec![
+                (ArgumentKind::Compiler, vec!["valac"]),
+                (ArgumentKind::Source { binary: true }, vec!["prebuilt.o"]),
+                (ArgumentKind::Output, vec!["-o", "program"]),
+            ],
+        ));
+
+        let result = sut.convert(&command);
+
+        assert_eq!(result.len(), 0);
     }
 
     #[test]

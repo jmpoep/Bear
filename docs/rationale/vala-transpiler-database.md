@@ -25,6 +25,23 @@ a compile flag (`-X -fPIC`) and a link flag (`-X -lm`).
 
 ## Decision
 
+We emit one entry per `valac` invocation, not one per `.vala`/`.gs`
+source. `valac` compiles all of a target's sources together as a single
+translation unit and produces one output (a `--library`/`--vapi`), so the
+universal "one entry per source" rule was wrong for it: it fanned a single
+invocation into N entries that each still carried the producing flags, and
+VLS keys each command on the produced `.vapi`, so N entries became N
+duplicate producers of the same binding and VLS refused to build. Meson
+emits exactly one entry per `valac` invocation, with `file` set to the
+first source; we match that. The combined entry keeps all sources in its
+arguments (they are not separable siblings to strip) and its `file` is the
+first source in argument order. Mechanically this is a per-invocation
+boolean on the semantic command (set in the valac interpreter factory, not
+in the compiler-flag YAML, because it is consumed at the converter rather
+than at parse time); the per-source compilers are unaffected. Reported on
+discussion #709 after the reporter tested the 4.1.5-rc build against
+GNOME/vala.
+
 We record the `valac` invocation itself, rather than its generated-C
 `cc` child, because VLS keys on `command[0]` containing `valac`; the
 child invocation would never match and so would be useless to the
@@ -53,7 +70,7 @@ bindings that valac consumes, not translation units; treating them as
 sources would emit entries for inputs nothing compiles.
 
 We classify `-X`/`--Xcc` as compile-affecting rather than linking.
-Linking arguments are stripped from per-source compile entries, so the
+Linking arguments are stripped from the combined compile entry, so the
 two readings diverge: the forwarded token is ambiguous, and dropping a
 compile-relevant flag (`-X -fPIC`) corrupts the entry, whereas keeping a
 stray link flag (`-X -lm`) is harmless noise. The cheaper failure wins.
