@@ -12,14 +12,26 @@
 #           emits, on the intersection of translation units, via cdb-compare
 #           (dogfood-oracle-cmake, dogfood-divergence-report).
 #
+# A third, target-agnostic mode (dogfood-determinism, Stage 4) is selected with
+# --determinism: run the SAME target's build twice in two fresh throwaway
+# containers and compare the two captures with cdb-compare. The build is its own
+# reference - no golden, no oracle. PASS iff the two captures are equivalent;
+# FAIL means real non-determinism / a race in Bear itself.
+#
 # Usage:
 #   tests/dogfooding/run.sh [--label L] [--rebless] [--keep] [zlib|curl]
+#   tests/dogfooding/run.sh --determinism [--inject-fault] [--label L] [--keep] T
 #
-#   --label L   name the per-run results subdirectory (default: local)
-#   --rebless   regenerate the committed golden from this run instead of
-#               gating against it (dogfood-golden-rebless; golden targets only)
-#   --keep      keep the throwaway container and scratch instead of removing
-#   zlib|curl   target name (default: zlib)
+#   --label L       name the per-run results subdirectory (default: local)
+#   --rebless       regenerate the committed golden from this run instead of
+#                   gating against it (dogfood-golden-rebless; golden targets only)
+#   --determinism   run the build twice and compare the two captures
+#                   (dogfood-determinism); skips the golden/oracle gate
+#   --inject-fault  with --determinism, perturb the SECOND build with an extra
+#                   compiler flag so the captures legitimately diverge - a
+#                   self-test that the determinism check catches a fault
+#   --keep          keep the throwaway container(s) and scratch instead of removing
+#   zlib|curl       target name (default: zlib)
 #
 # Outcomes / exit codes (dogfood-build-failure-taxonomy):
 #   PASS=0  FAIL=1  INCONCLUSIVE=2  ERROR=3
@@ -38,6 +50,8 @@ REPO_ROOT="$(cd "$HERE/../.." && pwd)"
 LABEL="local"
 REBLESS=0
 KEEP=0
+DETERMINISM=0
+INJECT_FAULT=0
 TARGET=""
 
 while [ $# -gt 0 ]; do
@@ -45,9 +59,11 @@ while [ $# -gt 0 ]; do
         --label) shift; [ $# -gt 0 ] || finish ERROR "--label needs a value"; LABEL="$1" ;;
         --label=*) LABEL="${1#--label=}" ;;
         --rebless) REBLESS=1 ;;
+        --determinism) DETERMINISM=1 ;;
+        --inject-fault) INJECT_FAULT=1 ;;
         --keep) KEEP=1 ;;
         -h|--help)
-            sed -n '4,26p' "$HERE/run.sh" >&2
+            sed -n '4,38p' "$HERE/run.sh" >&2
             exit 0 ;;
         --*) finish ERROR "unknown option: $1" ;;
         *)
@@ -57,6 +73,16 @@ while [ $# -gt 0 ]; do
     shift
 done
 [ -n "$TARGET" ] || TARGET="zlib"
+
+# --determinism is its own check (the build is its own reference): it never
+# involves a golden, so --rebless makes no sense with it. --inject-fault is a
+# self-test of --determinism only.
+if [ "$DETERMINISM" -eq 1 ] && [ "$REBLESS" -eq 1 ]; then
+    finish ERROR "--determinism and --rebless are mutually exclusive (no golden is involved)"
+fi
+if [ "$INJECT_FAULT" -eq 1 ] && [ "$DETERMINISM" -eq 0 ]; then
+    finish ERROR "--inject-fault is only meaningful with --determinism"
+fi
 
 # Both values become path segments and a container-name segment; reject anything
 # that could traverse out of the harness tree or break a podman name.
@@ -87,17 +113,20 @@ BEAR_SHA="$(cd "$REPO_ROOT" && git rev-parse --short HEAD)"
 BASE_TAG="bear-dogfood-base:$BEAR_SHA"
 TARGET_TAG="bear-dogfood-$TARGET:$BEAR_SHA"
 CONTAINER="bear-dogfood-$TARGET-$LABEL-$$"
+# Determinism runs the build twice, in two distinct fresh containers.
+CONTAINER2="bear-dogfood-$TARGET-$LABEL-$$-2"
 
-info "target=$TARGET label=$LABEL bear=$BEAR_SHA rebless=$REBLESS keep=$KEEP"
+info "target=$TARGET label=$LABEL bear=$BEAR_SHA rebless=$REBLESS determinism=$DETERMINISM inject_fault=$INJECT_FAULT keep=$KEEP"
 
-# Cleanup of the throwaway container unless --keep. Cached images are left in
+# Cleanup of the throwaway container(s) unless --keep. Cached images are left in
 # place (mentioned in the final report); the harness only removes what it spun
 # up per run.
 cleanup() {
     if [ "$KEEP" -eq 1 ]; then
-        info "--keep: leaving container $CONTAINER in place"
+        info "--keep: leaving container(s) $CONTAINER $CONTAINER2 in place"
     else
         rm_container "$CONTAINER"
+        rm_container "$CONTAINER2"
     fi
 }
 trap cleanup EXIT INT TERM
@@ -202,47 +231,68 @@ case "$SMOKE_OUT" in
         ;;
 esac
 
+# === STEP 5 (determinism): TWO REAL RUNS + COMPARE (dogfood-determinism) ======
+# Stage 4 self-check, target-agnostic: run the SAME target's build twice in two
+# fresh throwaway containers off the same pinned image, capture Bear's database
+# from each, and compare the two captures. The fixed build paths (/src, /build)
+# make the two captures multiset-equivalent, and cdb-compare is order-
+# independent, so build parallelism is fine - NO normalization flags are needed.
+# The build is its own reference: no golden, no oracle.
+#
+# PASS iff the two captures are equivalent. FAIL means real non-determinism / a
+# race in Bear itself (the diff is saved). Either build failing for its own
+# reasons is INCONCLUSIVE; infra/empty-capture is ERROR. All of that taxonomy
+# lives in build_and_capture (lib.sh).
+#
+# --inject-fault is the self-test: it perturbs the SECOND build with an extra
+# compiler flag (INJECT_CFLAGS, threaded into the build by config.env) so the
+# two captures legitimately diverge and the check is shown to FAIL. We do NOT
+# edit captured JSON by hand; the fault is a real, different second build.
+
+if [ "$DETERMINISM" -eq 1 ]; then
+    RUN1="$RESULTS_DIR/compile_commands.run1.json"
+    RUN2="$RESULTS_DIR/compile_commands.run2.json"
+    LOG1="$RESULTS_DIR/build.run1.log"
+    LOG2="$RESULTS_DIR/build.run2.log"
+
+    INJECT2=""
+    if [ "$INJECT_FAULT" -eq 1 ]; then
+        # A perturbing extra macro definition. config.env threads INJECT_CFLAGS
+        # into the second build's compiler flags, so this lands in the recorded
+        # arguments and makes run2 genuinely differ from run1.
+        INJECT2="-DBEAR_DOGFOOD_INJECTED_FAULT=1"
+        warn "inject-fault: second build perturbed with INJECT_CFLAGS='$INJECT2'"
+    fi
+
+    info "determinism run 1/2 (container $CONTAINER)"
+    build_and_capture "$CONTAINER" "$RUN1" "$LOG1" ""
+    info "determinism run 2/2 (container $CONTAINER2)"
+    build_and_capture "$CONTAINER2" "$RUN2" "$LOG2" "$INJECT2"
+
+    DIFF_HUMAN="$RESULTS_DIR/determinism-diff.txt"
+    DIFF_JSON="$RESULTS_DIR/determinism-diff.json"
+
+    info "comparing the two captures (cdb-compare compare, no normalization)"
+    if "$CDB_COMPARE" compare "$RUN1" "$RUN2" >"$DIFF_HUMAN" 2>&1; then
+        cat "$DIFF_HUMAN" >&2
+        finish PASS "the two captures are equivalent (no non-determinism)"
+    else
+        cat "$DIFF_HUMAN" >&2
+        "$CDB_COMPARE" compare --format json "$RUN1" "$RUN2" >"$DIFF_JSON" 2>&1 || true
+        err "the two captures differ; diffs saved to $DIFF_HUMAN and $DIFF_JSON"
+        finish FAIL "captures differ across two identical builds (Bear non-determinism) - see $DIFF_HUMAN"
+    fi
+fi
+
 # === STEP 5: REAL RUN (dogfood-run-containerized + dogfood-fixed-paths) =======
 # Run the real build wrapped by Bear at fixed path /src. Configure/make failure
-# => INCONCLUSIVE (target's own reasons). Empty captured CDB => ERROR.
+# => INCONCLUSIVE (target's own reasons). Empty captured CDB => ERROR. The
+# build-and-capture body is shared with the determinism path (lib.sh).
 
 FRESH="$RESULTS_DIR/compile_commands.json"
 BUILD_LOG="$RESULTS_DIR/build.log"
 
-info "running real build in container $CONTAINER"
-set +e
-podman run --systemd=always --name "$CONTAINER" "$TARGET_TAG" sh -c "
-    set -e
-    mkdir -p /out
-    $TARGET_BUILD_CMD
-" >"$BUILD_LOG" 2>&1
-BUILD_RC=$?
-set -e
-
-if [ "$BUILD_RC" -ne 0 ]; then
-    # Distinguish a container that never started (host/cgroup/image infra =>
-    # ERROR) from one that ran but whose build failed for its own reasons
-    # (=> INCONCLUSIVE). If the container does not exist, podman run never
-    # launched it.
-    if ! podman container exists "$CONTAINER" 2>/dev/null; then
-        err "podman run never started the container; see $BUILD_LOG"
-        finish ERROR "podman run failed to start container (systemd/cgroup/image infra)"
-    fi
-    err "target build exited $BUILD_RC; see $BUILD_LOG"
-    finish INCONCLUSIVE "target build failed (configure/make) - log at $BUILD_LOG"
-fi
-
-# Copy the captured CDB out of the stopped container (sidesteps SELinux relabel).
-if ! podman cp "$CONTAINER:/out/compile_commands.json" "$FRESH" >&2; then
-    finish ERROR "could not copy compile_commands.json out of the container"
-fi
-
-# Empty / entry-less capture => ERROR (Bear ran but captured nothing).
-if ! grep -q '"file"' "$FRESH" 2>/dev/null; then
-    err "captured CDB has no entries: $FRESH"
-    finish ERROR "empty capture from real build (interception produced nothing)"
-fi
-info "captured CDB: $FRESH"
+build_and_capture "$CONTAINER" "$FRESH" "$BUILD_LOG" ""
 
 # For oracle targets, also pull CMake's own database (the reference oracle the
 # in-container build wrote to /out/oracle.json).

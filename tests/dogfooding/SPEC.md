@@ -1,4 +1,4 @@
-# Dogfooding harness specification - Stages 2 and 3
+# Dogfooding harness specification - Stages 2, 3, and 4 (determinism)
 
 These are the `dogfood-*` contracts the harness under `tests/dogfooding/`
 satisfies. They are contracts on the TEST HARNESS, not on Bear, so they
@@ -11,8 +11,11 @@ release binaries are run against a real project inside a throwaway container,
 and the captured compilation database is validated. Sources and toolchain live
 only in the container, never in the repo or the devcontainer image
 (feasibility.md Option C). A per-target `VALIDATION` selector in `config.env`
-chooses the validation mode: `golden` (Stage 2, zlib) gates against a committed
-golden; `oracle` (Stage 3, curl) gates against the database CMake itself emits.
+chooses the per-target validation mode: `golden` (Stage 2, zlib) gates against a
+committed golden; `oracle` (Stage 3, curl) gates against the database CMake
+itself emits. A third, target-agnostic check is selected with the `--determinism`
+flag (Stage 4): it runs the same target twice and compares the two captures,
+independent of any golden or oracle.
 
 ## dogfood-run-containerized
 
@@ -160,3 +163,49 @@ If a future oracle target exhibits a different benign argument difference that
 `--drop-dependency-flags` does not cover, extend the comparator with a tested
 rule rather than reintroducing a shell allow-list - the comparison logic stays
 in one unit-tested place.
+
+## dogfood-determinism (Stage 4)
+
+The suite can run the same target twice and assert Bear's two outputs are
+equivalent under `dogfood-cdb-compare`. Any difference indicates non-determinism
+or a race in Bear itself; the build is its own reference, no golden and no oracle
+required. This is target-agnostic: it runs for any target, golden or oracle.
+
+Implementation: `run.sh --determinism <target>` runs the shared preflight, base
++ target image builds, and the non-empty-capture smoke (exactly as a normal
+run), then runs the target build TWICE in two distinct fresh throwaway
+containers off the same pinned image (`build_and_capture` in `lib.sh`, invoked
+once per container - the same body the normal single-run path uses, so the
+build-failure taxonomy is identical), and compares the two captures with
+`cdb-compare compare <run1> <run2>`. NO normalization flags are used: the fixed
+build paths (`/src`, `/build`) make the two captures multiset-equivalent at the
+source, and `cdb-compare` is order-independent, so build parallelism does not
+matter. The golden/oracle gate is SKIPPED entirely (determinism is its own
+check). `--determinism` with `--rebless` is rejected (ERROR: no golden is
+involved); `--inject-fault` outside `--determinism` is likewise an ERROR.
+
+Outcome (reusing the existing taxonomy): both captures equivalent => PASS;
+captures differ => FAIL (real Bear non-determinism / a race), with the
+`cdb-compare compare` diff saved to `results/<target>/<label>/determinism-diff.txt`
+(and `.json`); either build failing for its own reasons => INCONCLUSIVE;
+podman/infra/empty-capture/missing host `cdb-compare` => ERROR. Both captures
+are written as `compile_commands.run1.json` and `compile_commands.run2.json`.
+
+Self-test (the Stage 4 exit criterion - the check must demonstrably catch a
+fault): `run.sh --determinism --inject-fault <target>` perturbs the SECOND build
+with an extra compiler flag so the two builds legitimately diverge, and the
+check is shown to FAIL. The fault is injected as a real, different second build,
+NOT by editing captured JSON by hand: `run.sh` passes a non-empty `INJECT_CFLAGS`
+(an extra `-D...` macro) into the second container only, and each target's
+`config.env` threads `${INJECT_CFLAGS:-}` into that build's compiler flags
+(`CFLAGS` for zlib's configure, `CMAKE_C_FLAGS` for curl's cmake). On a normal
+run and on determinism run 1 the value is empty, a no-op. `run.sh --determinism
+<target>` (no fault) PASSes; the `--inject-fault` variant FAILs. Both directions
+are verified for zlib and curl.
+
+Scope boundary: the DROPPED, DUPLICATED, and CORRUPTED-ENTRY faults from the
+Stage 4 plan are the `dogfood-invariants` check's territory (structural
+assertions on a single capture: every TU present, no empty `arguments`, no true
+duplicates), not determinism's. They are a separate Rust follow-up and are NOT
+implemented here. Determinism's own fault model is a divergent second build,
+which is exactly what `--inject-fault` exercises.

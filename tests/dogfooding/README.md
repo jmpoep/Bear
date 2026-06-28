@@ -74,6 +74,11 @@ tests/dogfooding/run.sh --label rc1
 
 # Keep the throwaway container for inspection.
 tests/dogfooding/run.sh --keep
+
+# Determinism self-check: run the target twice and compare the two captures
+# (any target; skips the golden/oracle gate).
+tests/dogfooding/run.sh --determinism zlib
+tests/dogfooding/run.sh --determinism curl
 ```
 
 The first invocation builds two cached images (`bear-dogfood-base:<sha>` and
@@ -87,8 +92,8 @@ The harness prints one final `OUTCOME:` line and exits with:
 
 | Outcome      | Exit | Meaning |
 |--------------|------|---------|
-| PASS         | 0    | golden: fresh capture matches the golden. oracle: matched TUs equivalent to the CMake oracle. No regression. |
-| FAIL         | 1    | golden: golden mismatch (review the diff, then fix Bear or rebless). oracle: matched TUs diverge from CMake's database (inspect the `matched but differing` section of `oracle-report.txt`). A real behavioral change in Bear's output. |
+| PASS         | 0    | golden: fresh capture matches the golden. oracle: matched TUs equivalent to the CMake oracle. determinism: the two captures are equivalent. No regression. |
+| FAIL         | 1    | golden: golden mismatch (review the diff, then fix Bear or rebless). oracle: matched TUs diverge from CMake's database (inspect the `matched but differing` section of `oracle-report.txt`). determinism: the two captures differ across two identical builds (real Bear non-determinism / a race; see `determinism-diff.txt`). A real behavioral change in Bear's output. |
 | INCONCLUSIVE | 2    | The target build failed for its own reasons (source fetch, sha, network, configure/make, OOM). Not a Bear regression. The build log is saved. |
 | ERROR        | 3    | Harness or Bear-infra failure: podman missing, disk/digest preflight, base image build, empty capture (libexec/INTERCEPT_LIBDIR mismatch), an oracle that matched 0 TUs (nothing compared), or missing host `cdb-compare`. |
 
@@ -171,6 +176,59 @@ The comparator's report (extras lists plus a `summary:` line) is written to
 `matched but differing` section. If a future oracle target shows a *different*
 benign argument difference, extend `cdb-compare` (a tested normalization rule),
 not a shell allow-list - the comparison stays in one place.
+
+## The determinism check (dogfood-determinism)
+
+`run.sh --determinism <target>` runs the SAME target's build twice in two fresh
+throwaway containers off the same pinned image, captures Bear's compilation
+database from each, and compares the two captures. The build is its own
+reference - no golden, no oracle - so this works for ANY target (verified on both
+zlib and curl). It reuses the same preflight, image builds, non-empty-capture
+smoke, and `build_and_capture` helper as a normal run, then SKIPS the
+golden/oracle gate.
+
+```sh
+tests/dogfooding/run.sh --determinism zlib   # autotools target
+tests/dogfooding/run.sh --determinism curl   # runs two CMake builds; slower
+```
+
+The comparison uses `cdb-compare compare <run1> <run2>` with NO normalization
+flags: the fixed build paths (`/src`, `/build`) make the two captures
+multiset-equivalent at the source, and `cdb-compare` is order-independent, so
+build parallelism does not matter. PASS means the two captures are equivalent;
+FAIL means they genuinely differ across two identical builds - that is real
+non-determinism or a race in Bear itself, and the diff is saved to
+`results/<target>/<label>/determinism-diff.txt` (with a machine-readable
+`.json`). Both captures are kept as `compile_commands.run1.json` and
+`compile_commands.run2.json`. A build that fails for its own reasons is
+INCONCLUSIVE; infra/empty-capture/missing host `cdb-compare` is ERROR - the same
+taxonomy as a normal run. `--determinism` with `--rebless` is rejected (no golden
+is involved).
+
+### Self-test: catching an injected fault
+
+The determinism check must demonstrably catch a fault. `--inject-fault` does
+that without editing captured JSON by hand: it perturbs the SECOND build with an
+extra compiler flag (`-DBEAR_DOGFOOD_INJECTED_FAULT=1`) so the two builds
+legitimately diverge.
+
+```sh
+tests/dogfooding/run.sh --determinism zlib                 # => PASS (exit 0)
+tests/dogfooding/run.sh --determinism --inject-fault zlib  # => FAIL (exit 1)
+```
+
+`run.sh` passes a non-empty `INJECT_CFLAGS` into the second container only;
+each target's `config.env` threads `${INJECT_CFLAGS:-}` into that build's
+compiler flags (`CFLAGS` for zlib's configure, `CMAKE_C_FLAGS` for curl's
+cmake). On a normal run and on determinism run 1 the value is empty - a no-op,
+so a normal run is unchanged. The FAIL run's `determinism-diff.txt` shows the
+injected flag present in run 2's arguments and absent in run 1's, confirming the
+check caught the divergence. `--inject-fault` is only valid with `--determinism`.
+
+The DROPPED / DUPLICATED / CORRUPTED-ENTRY faults from the Stage 4 plan belong
+to the separate `dogfood-invariants` check (structural assertions on a single
+capture), not to determinism, and are a separate Rust follow-up - not
+implemented here.
 
 ## What the harness does NOT do
 

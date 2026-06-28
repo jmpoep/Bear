@@ -95,6 +95,72 @@ preflight_image() {
     return 0
 }
 
+# --- build-and-capture (dogfood-run-containerized + dogfood-fixed-paths) ------
+#
+# Run the real target build wrapped by Bear in a fresh throwaway container and
+# copy the captured compilation database out. Factored out of run.sh STEP 5 so
+# the determinism check (dogfood-determinism) can invoke it twice, once per
+# fresh container, without duplicating the build-failure taxonomy.
+#
+# Arguments:
+#   $1  container name (must be unique; the caller registers it for cleanup)
+#   $2  destination path for the captured compile_commands.json on the host
+#   $3  build log path on the host
+#   $4  value for INJECT_CFLAGS passed into the container (empty for a normal
+#       run; a perturbing flag for the --inject-fault determinism self-test)
+#
+# Reads from the caller's environment: TARGET_TAG, TARGET_BUILD_CMD.
+#
+# Outcome taxonomy (calls finish, which exits the whole run):
+#   container never started      -> ERROR  (host/cgroup/image infra)
+#   build exited non-zero        -> INCONCLUSIVE (target's own configure/make)
+#   capture missing / empty      -> ERROR  (interception produced nothing)
+# On success it returns 0 and leaves the capture at $2.
+build_and_capture() {
+    _bac_container="$1"
+    _bac_dest="$2"
+    _bac_log="$3"
+    _bac_inject="$4"
+
+    info "running real build in container $_bac_container"
+    set +e
+    podman run --systemd=always --name "$_bac_container" \
+        --env "INJECT_CFLAGS=$_bac_inject" \
+        "$TARGET_TAG" sh -c "
+        set -e
+        mkdir -p /out
+        $TARGET_BUILD_CMD
+    " >"$_bac_log" 2>&1
+    _bac_rc=$?
+    set -e
+
+    if [ "$_bac_rc" -ne 0 ]; then
+        # Distinguish a container that never started (host/cgroup/image infra =>
+        # ERROR) from one that ran but whose build failed for its own reasons
+        # (=> INCONCLUSIVE). If the container does not exist, podman run never
+        # launched it.
+        if ! podman container exists "$_bac_container" 2>/dev/null; then
+            err "podman run never started the container; see $_bac_log"
+            finish ERROR "podman run failed to start container (systemd/cgroup/image infra)"
+        fi
+        err "target build exited $_bac_rc; see $_bac_log"
+        finish INCONCLUSIVE "target build failed (configure/make) - log at $_bac_log"
+    fi
+
+    # Copy the captured CDB out of the stopped container (sidesteps SELinux relabel).
+    if ! podman cp "$_bac_container:/out/compile_commands.json" "$_bac_dest" >&2; then
+        finish ERROR "could not copy compile_commands.json out of the container"
+    fi
+
+    # Empty / entry-less capture => ERROR (Bear ran but captured nothing).
+    if ! grep -q '"file"' "$_bac_dest" 2>/dev/null; then
+        err "captured CDB has no entries: $_bac_dest"
+        finish ERROR "empty capture from real build (interception produced nothing)"
+    fi
+    info "captured CDB: $_bac_dest"
+    return 0
+}
+
 # --- oracle validation (dogfood-oracle-cmake, dogfood-divergence-report) ------
 #
 # The oracle path compares Bear's capture against the database CMake emits, on
