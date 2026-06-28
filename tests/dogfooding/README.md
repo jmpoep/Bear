@@ -15,6 +15,13 @@ Each target picks a validation mode with a `VALIDATION` selector in its
   emits (`CMAKE_EXPORT_COMPILE_COMMANDS=ON`), on the intersection of translation
   units. The oracle is self-renewing: when curl updates, CMake produces a fresh
   reference, so there is no hand-maintained baseline.
+- **none** (scale targets ffmpeg and the Linux kernel, Stage 4): no golden and
+  no oracle (too large to bless / not CMake). These are run ONLY with the
+  target-agnostic Stage 4 checks (`--invariants` / `--determinism` / `--replay`);
+  a no-mode run is rejected with a pointer to those. They prove the checks hold
+  from midsize (ffmpeg, ~1945 TUs, custom `configure`) to kernel scale (x86_64
+  defconfig, ~3000 TUs) - including that Bear stays deterministic and its
+  process-tree teardown holds under a high-`-j` kernel build.
 
 This is the host-orchestrated Podman model (feasibility.md Option C): the
 orchestrator is POSIX `sh` on the host, each target runs in a per-project

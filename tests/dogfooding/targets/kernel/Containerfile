@@ -1,0 +1,57 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# Linux kernel target image (Stage 4 scale validation). Layers on the
+# locally-built dogfooding base (which carries Bear-under-test + cdb-compare)
+# and installs the kernel's own build dependencies plus the pinned,
+# sha256-verified source at the fixed path /src (dogfood-fixed-paths). The
+# actual 'make' is wrapped by Bear at 'podman run' time, NOT here, so the
+# image build stays free of any Bear invocation.
+#
+# This target exists ONLY to exercise the target-agnostic Stage 4 checks
+# (--invariants / --determinism / --replay) at LLVM/kernel scale: a defconfig
+# x86_64 build is tens of thousands of translation units. It has no committed
+# golden and no oracle (VALIDATION=none in config.env).
+
+ARG BASE_TAG
+FROM ${BASE_TAG}
+
+ARG SRC_DIR=/src
+
+# The pinned kernel source. The URL and sha256 are HARDCODED here (not
+# build-args): the source revision is part of the pinned dogfooding
+# configuration (dogfood-pinned-target), so it belongs in the committed image
+# definition, not in a caller-supplied argument. Pinned to 6.12.94 (an LTS
+# series). A checksum mismatch fails the build (caught by the harness as
+# INCONCLUSIVE: target infra).
+ARG KERNEL_URL="https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-6.12.94.tar.xz"
+ARG KERNEL_SHA256="e998a232b9418db3301cb58468e291a4f41d6ab8306029b30d991f56251dc8d2"
+
+# Kernel build dependencies for `make defconfig && make` on x86_64:
+#   gcc make                     - the compiler and the build driver
+#   flex bison                   - generate the device-tree / kconfig parsers
+#   bc                           - arithmetic in Kbuild scripts (e.g. timeconst)
+#   elfutils-libelf-devel        - <libelf.h> for objtool / CONFIG_UNWINDER
+#   openssl-devel                - module signing / certs (<openssl/...>)
+#   perl gawk                    - assorted Kbuild and header-generation scripts
+#   diffutils findutils          - cmp/diff and find used throughout Kbuild
+#   xz tar gzip                  - fetch + unpack the .tar.xz, in-tree gzip use
+#   hostname                     - kernel records the build host
+#   util-linux                   - misc coreutils-adjacent tools Kbuild expects
+#   curl                         - fetch the pinned tarball
+RUN dnf -y install \
+        gcc make flex bison bc \
+        elfutils-libelf-devel openssl-devel \
+        perl gawk diffutils findutils \
+        xz tar gzip hostname util-linux curl \
+    && dnf -y clean all \
+    && rm -rf /var/cache/dnf
+
+# Fetch, verify by sha256, extract to the fixed SRC_DIR. A checksum mismatch
+# fails the build (caught by the harness as INCONCLUSIVE: target infra).
+RUN mkdir -p "${SRC_DIR}" \
+    && curl --proto '=https' --tlsv1.2 -fsSL -o /tmp/linux.tar.xz "${KERNEL_URL}" \
+    && echo "${KERNEL_SHA256}  /tmp/linux.tar.xz" | sha256sum -c - \
+    && tar -xJf /tmp/linux.tar.xz -C "${SRC_DIR}" --strip-components=1 \
+    && rm -f /tmp/linux.tar.xz
+
+WORKDIR ${SRC_DIR}

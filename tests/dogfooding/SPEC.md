@@ -235,18 +235,31 @@ saved to `results/<target>/<label>/invariants-report.txt`.
 The object count `<N>` is taken IN the container before teardown, by a
 per-target `OBJECT_COUNT_CMD` (config.env) written to `/out/object_count` and
 pulled out. The instrument is per-target because "objects produced" is not
-always "*.o files still on disk": curl's CMake leaves every object under
-`/build`, so the default `find $OBJECTS_DIR -name '*.o' | wc -l` is exact, but
-zlib's in-tree `make` compiles each library source twice (static + PIC) and
-DELETES the PIC objects under `objs/` at link time, so a post-build `find`
-undercounts ~1.8x (19 survive, 34 produced). zlib therefore overrides
-`OBJECT_COUNT_CMD` to count make's OWN dependency graph
-(`make -Bn | grep -oE -e '-o ...\.o' | sort -u | wc -l`) - a build-system-native,
-cleanup-independent, Bear-independent count of produced objects. `<PCT>` is the
-per-target `OBJECT_TOLERANCE_PCT` (10 for both): with the count instruments
-above, entries == objects exactly (zlib 34/34, curl 221/221), so 10% is mere
-headroom for an incidental build-system object and keeps the check sensitive to
-a real entry drop or duplication.
+always "*.o files still on disk":
+- curl / ffmpeg leave every object on disk, so the default
+  `find $OBJECTS_DIR -name '*.o' | wc -l` is exact;
+- zlib's in-tree `make` compiles each source twice (static + PIC) and DELETES
+  the PIC objects at link time (19 survive, 34 produced), so it counts make's
+  OWN dependency graph (`make -Bn`);
+- the kernel aggregates objects into built-in.a / linked .o (a `find`
+  overcounts) AND a `make -Bn` dry-run does not enumerate its recursive compiles
+  (it counts ~0), so it counts Kbuild's per-compile `.foo.o.cmd` files instead.
+All are build-system-native, cleanup-independent, Bear-independent. `<PCT>` is
+the per-target `OBJECT_TOLERANCE_PCT`.
+
+Graceful degradation: the entry-count cross-check is opt-in and must never block
+the always-on structural checks. If `OBJECT_COUNT_CMD` cannot produce a number
+(0 / empty), `run.sh` warns and runs `cdb-compare invariants` WITHOUT
+`--expected-objects` (entry-count skipped), still gating on non-empty-arguments
+and no-true-duplicates. A target whose independent object count is genuinely
+hard still gets the structural invariants.
+
+Scale: validated on two larger gate-less (`VALIDATION=none`) targets - ffmpeg
+(~1945 TUs, exact: entries == objects == 1945) and the Linux kernel (x86_64
+defconfig, ~3000 TUs: Kbuild `.cmd` count 2991 vs entries 3004, a 0.4% match).
+The entry-count band is thus a real coverage cross-check at scale (did Bear
+capture ~every compile?), not just a small-target nicety; entries == objects
+exactly on zlib (34) and curl (221).
 
 ## dogfood-replay (Stage 4)
 

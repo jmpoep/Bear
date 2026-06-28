@@ -1,0 +1,41 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# FFmpeg target image (Stage 4, scale validation). Layers on the locally-built
+# dogfooding base (which carries Bear-under-test + cdb-compare) and installs
+# FFmpeg's minimal build dependencies plus the pinned, sha256-verified source at
+# the fixed path /src (dogfood-fixed-paths). FFmpeg uses a HAND-WRITTEN POSIX-sh
+# `configure` (no autotools, no CMake), which is the build-system variety this
+# midsize target adds to the harness. The actual 'make' is wrapped by Bear at
+# 'podman run' time, NOT here, so the image build stays free of any Bear call.
+
+ARG BASE_TAG
+FROM ${BASE_TAG}
+
+ARG SRC_DIR=/src
+
+# Target build deps: gcc + make + perl build FFmpeg (perl drives some of the
+# build's text generation); pkgconfig + diffutils are probed by FFmpeg's
+# configure; tar + xz unpack the .tar.xz source. No nasm/yasm: the configure
+# flags disable all assembly, so FFmpeg builds with just gcc + make (see
+# config.env's TARGET_BUILD_CMD).
+RUN dnf -y install gcc make perl tar xz gzip pkgconfig diffutils \
+    && dnf -y clean all \
+    && rm -rf /var/cache/dnf
+
+# Pinned FFmpeg source. Unlike zlib/curl, the URL and sha256 are HARDCODED here
+# (not build-args): the pin is part of this target's definition and run.sh does
+# not thread an FFMPEG_URL through. ffmpeg-7.1 is a stable release from the
+# upstream release archive; the sha256 was verified against the downloaded
+# tarball. A checksum mismatch fails the build (caught by the harness as
+# INCONCLUSIVE: target infra).
+ARG FFMPEG_URL="https://ffmpeg.org/releases/ffmpeg-7.1.tar.xz"
+ARG FFMPEG_SHA256="40973d44970dbc83ef302b0609f2e74982be2d85916dd2ee7472d30678a7abe6"
+
+# Fetch, verify by sha256, extract to the fixed SRC_DIR.
+RUN mkdir -p "${SRC_DIR}" \
+    && curl --proto '=https' --tlsv1.2 -fsSL -o /tmp/ffmpeg.tar.xz "${FFMPEG_URL}" \
+    && echo "${FFMPEG_SHA256}  /tmp/ffmpeg.tar.xz" | sha256sum -c - \
+    && tar -xJf /tmp/ffmpeg.tar.xz -C "${SRC_DIR}" --strip-components=1 \
+    && rm -f /tmp/ffmpeg.tar.xz
+
+WORKDIR ${SRC_DIR}

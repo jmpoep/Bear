@@ -136,13 +136,23 @@ TARGET_DIR="$HERE/targets/$TARGET"
 # shellcheck source=tests/dogfooding/targets/zlib/config.env
 . "$TARGET_DIR/config.env"
 
-# Per-target validation selector (dogfood-oracle-cmake). zlib's config predates
-# this selector and omits it, so golden is the default; curl sets oracle.
+# Per-target validation selector. zlib's config predates this selector and omits
+# it, so golden is the default; curl sets oracle. Large scale-check targets (the
+# kernel, ffmpeg) set `none`: they have no committed golden and no CMake oracle
+# (unverifiable / non-CMake at scale), so they are only run with the
+# target-agnostic Stage 4 checks (--invariants/--determinism/--replay).
 VALIDATION="${VALIDATION:-golden}"
 case "$VALIDATION" in
-    golden|oracle) ;;
-    *) finish ERROR "VALIDATION must be golden or oracle, got '$VALIDATION'" ;;
+    golden|oracle|none) ;;
+    *) finish ERROR "VALIDATION must be golden, oracle, or none, got '$VALIDATION'" ;;
 esac
+
+# A VALIDATION=none target has no default gate; a no-mode run cannot do anything
+# meaningful, so direct the caller to a Stage 4 check rather than failing later
+# on a missing golden.
+if [ "$MODE_COUNT" -eq 0 ] && [ "$VALIDATION" = "none" ]; then
+    finish ERROR "target '$TARGET' has no golden/oracle gate; run it with --invariants, --determinism, or --replay"
+fi
 
 GOLDEN="$HERE/goldens/$TARGET/compile_commands.json"
 RESULTS_DIR="$HERE/results/$TARGET/$LABEL"
@@ -368,20 +378,28 @@ if [ "$INVARIANTS" -eq 1 ]; then
         finish ERROR "could not copy object_count out of the container"
     fi
     OBJ_COUNT="$(tr -d ' \n\r\t' < "$OBJ_COUNT_FILE")"
-    case "$OBJ_COUNT" in
-        ''|*[!0-9]*) finish ERROR "object_count is not a number: '$OBJ_COUNT'" ;;
-    esac
-    if [ "$OBJ_COUNT" -eq 0 ]; then
-        finish ERROR "object_count is 0 (find under $OBJECTS_DIR matched nothing); cannot gate entry-count"
-    fi
     ENTRY_COUNT="$(grep -c '"file"' "$FRESH" 2>/dev/null || echo 0)"
+    # The entry-count cross-check is opt-in and DEGRADES GRACEFULLY: the
+    # always-on structural invariants (non-empty-arguments, no-true-duplicates)
+    # must not be blocked just because a per-target object-count instrument could
+    # not produce a number (some large build systems make an independent compile
+    # count genuinely hard - the kernel's recursive Kbuild, for one). When the
+    # count is missing/zero, warn and skip only entry-count; still run the rest.
+    case "$OBJ_COUNT" in
+        ''|*[!0-9]*|0)
+            warn "object count unavailable ('$OBJ_COUNT') from OBJECT_COUNT_CMD; skipping the entry-count cross-check (structural invariants still run)"
+            COUNT_ARGS=""
+            OBJ_COUNT="unavailable" ;;
+        *)
+            COUNT_ARGS="--expected-objects $OBJ_COUNT --tolerance $OBJ_TOL" ;;
+    esac
     info "invariants: object_count=$OBJ_COUNT entry_count=$ENTRY_COUNT tolerance=${OBJ_TOL}%"
 
     REPORT="$RESULTS_DIR/invariants-report.txt"
     info "asserting structural invariants (cdb-compare invariants)"
     set +e
-    "$CDB_COMPARE" invariants --drop-dependency-flags \
-        --expected-objects "$OBJ_COUNT" --tolerance "$OBJ_TOL" \
+    # shellcheck disable=SC2086  # COUNT_ARGS is a deliberate word list (may be empty)
+    "$CDB_COMPARE" invariants --drop-dependency-flags $COUNT_ARGS \
         --format human "$FRESH" >"$REPORT" 2>&1
     INV_RC=$?
     set -e
