@@ -1,0 +1,32 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# curl target image (Stage 3, oracle). Layers on the locally-built dogfooding
+# base (which carries Bear-under-test + cdb-compare) and installs curl's
+# minimal CMake build dependencies plus the pinned, sha256-verified source at
+# the fixed path /src (dogfood-fixed-paths). The actual CMake configure+build
+# is run at 'podman run' time (so Bear intercepts the build), NOT here, so the
+# image build stays free of any Bear invocation.
+
+ARG BASE_TAG
+FROM ${BASE_TAG}
+
+ARG CURL_URL
+ARG CURL_SHA256
+ARG SRC_DIR=/src
+
+# Target build deps: cmake + gcc + make build curl with all optional
+# dependencies disabled (see config.env's -D...=OFF flags); the system curl
+# binary + tar fetch and unpack the pinned source.
+RUN dnf -y install cmake gcc make curl tar gzip \
+    && dnf -y clean all \
+    && rm -rf /var/cache/dnf
+
+# Fetch, verify by sha256, extract to the fixed SRC_DIR. A checksum mismatch
+# fails the build (caught by the harness as INCONCLUSIVE: target infra).
+RUN mkdir -p "${SRC_DIR}" \
+    && curl --proto '=https' --tlsv1.2 -fsSL -o /tmp/curl.tar.gz "${CURL_URL}" \
+    && echo "${CURL_SHA256}  /tmp/curl.tar.gz" | sha256sum -c - \
+    && tar -xzf /tmp/curl.tar.gz -C "${SRC_DIR}" --strip-components=1 \
+    && rm -f /tmp/curl.tar.gz
+
+WORKDIR ${SRC_DIR}

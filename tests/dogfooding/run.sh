@@ -6,14 +6,20 @@
 # a pinned target, and passes/fails the captured compilation database against a
 # committed golden (dogfood-golden-regression).
 #
+# Two validation modes, selected per-target by VALIDATION in config.env:
+#   golden  (zlib, Stage 2): gate the capture against a committed golden CDB.
+#   oracle  (curl, Stage 3): gate the capture against the database CMake itself
+#           emits, on the intersection of translation units, with an allow-list
+#           (dogfood-oracle-cmake, dogfood-divergence-report).
+#
 # Usage:
-#   tests/dogfooding/run.sh [--label L] [--rebless] [--keep] [zlib]
+#   tests/dogfooding/run.sh [--label L] [--rebless] [--keep] [zlib|curl]
 #
 #   --label L   name the per-run results subdirectory (default: local)
 #   --rebless   regenerate the committed golden from this run instead of
-#               gating against it (dogfood-golden-rebless)
+#               gating against it (dogfood-golden-rebless; golden targets only)
 #   --keep      keep the throwaway container and scratch instead of removing
-#   zlib        target name (default and only Stage 2 target: zlib)
+#   zlib|curl   target name (default: zlib)
 #
 # Outcomes / exit codes (dogfood-build-failure-taxonomy):
 #   PASS=0  FAIL=1  INCONCLUSIVE=2  ERROR=3
@@ -41,7 +47,7 @@ while [ $# -gt 0 ]; do
         --rebless) REBLESS=1 ;;
         --keep) KEEP=1 ;;
         -h|--help)
-            sed -n '4,20p' "$HERE/run.sh" >&2
+            sed -n '4,26p' "$HERE/run.sh" >&2
             exit 0 ;;
         --*) finish ERROR "unknown option: $1" ;;
         *)
@@ -62,6 +68,14 @@ TARGET_DIR="$HERE/targets/$TARGET"
 
 # shellcheck source=tests/dogfooding/targets/zlib/config.env
 . "$TARGET_DIR/config.env"
+
+# Per-target validation selector (dogfood-oracle-cmake). zlib's config predates
+# this selector and omits it, so golden is the default; curl sets oracle.
+VALIDATION="${VALIDATION:-golden}"
+case "$VALIDATION" in
+    golden|oracle) ;;
+    *) finish ERROR "VALIDATION must be golden or oracle, got '$VALIDATION'" ;;
+esac
 
 GOLDEN="$HERE/goldens/$TARGET/compile_commands.json"
 RESULTS_DIR="$HERE/results/$TARGET/$LABEL"
@@ -106,6 +120,15 @@ if [ ! -x "$CDB_COMPARE" ]; then
     finish ERROR "host cdb-compare binary missing"
 fi
 
+# The oracle path post-processes the comparator's JSON (bucket extras, apply the
+# allow-list) with jq, and --rebless has no meaning without a golden.
+if [ "$VALIDATION" = "oracle" ]; then
+    require_jq
+    if [ "$REBLESS" -eq 1 ]; then
+        finish ERROR "--rebless applies only to golden targets; $TARGET validates against the CMake oracle"
+    fi
+fi
+
 # === STEP 2: BUILD BASE IMAGE (dogfood-run-containerized) =====================
 # Build Bear-under-test inside the base image from a 'git archive HEAD' context
 # (committed files ONLY; the dirty working tree, plan.md, target/ never reach
@@ -142,12 +165,16 @@ trap cleanup EXIT INT TERM
 # target's own infra -> INCONCLUSIVE. A failure resolving the base would be
 # ERROR, but step 2 just produced it, so a failure here is target infra.
 
+# Each target pins its source under its own URL/SHA256 variable names (ZLIB_*,
+# CURL_*); both Containerfiles consume the same SRC_DIR. Pass the variables the
+# present target defines, so a target only ever sees its own build-args.
 info "building target image $TARGET_TAG"
-if ! podman build \
-        --build-arg "BASE_TAG=$BASE_TAG" \
-        --build-arg "ZLIB_URL=$ZLIB_URL" \
-        --build-arg "ZLIB_SHA256=$ZLIB_SHA256" \
-        --build-arg "SRC_DIR=$SRC_DIR" \
+set -- --build-arg "BASE_TAG=$BASE_TAG" --build-arg "SRC_DIR=$SRC_DIR"
+[ -n "${ZLIB_URL:-}" ]    && set -- "$@" --build-arg "ZLIB_URL=$ZLIB_URL"
+[ -n "${ZLIB_SHA256:-}" ] && set -- "$@" --build-arg "ZLIB_SHA256=$ZLIB_SHA256"
+[ -n "${CURL_URL:-}" ]    && set -- "$@" --build-arg "CURL_URL=$CURL_URL"
+[ -n "${CURL_SHA256:-}" ] && set -- "$@" --build-arg "CURL_SHA256=$CURL_SHA256"
+if ! podman build "$@" \
         -f "$TARGET_DIR/Containerfile" \
         -t "$TARGET_TAG" \
         "$TARGET_DIR" >&2; then
@@ -220,7 +247,81 @@ if ! grep -q '"file"' "$FRESH" 2>/dev/null; then
 fi
 info "captured CDB: $FRESH"
 
-# === STEP 6: GATE (dogfood-golden-regression) ================================
+# For oracle targets, also pull CMake's own database (the reference oracle the
+# in-container build wrote to /out/oracle.json).
+ORACLE="$RESULTS_DIR/oracle.json"
+if [ "$VALIDATION" = "oracle" ]; then
+    if ! podman cp "$CONTAINER:/out/oracle.json" "$ORACLE" >&2; then
+        finish ERROR "could not copy oracle.json (CMake's database) out of the container"
+    fi
+    if ! grep -q '"file"' "$ORACLE" 2>/dev/null; then
+        err "CMake oracle DB has no entries: $ORACLE"
+        finish ERROR "empty CMake oracle database (configure did not export compile_commands)"
+    fi
+    info "captured oracle CDB: $ORACLE"
+fi
+
+# === STEP 6: GATE ============================================================
+# Dispatch on the per-target validation selector: oracle (curl, Stage 3) or
+# golden (zlib, Stage 2).
+
+if [ "$VALIDATION" = "oracle" ]; then
+    # --- oracle gate (dogfood-oracle-cmake, dogfood-divergence-report) -------
+    # Match Bear's capture against CMake's database on the intersection of
+    # translation units, identified by (file, absolute-output). The host
+    # cdb-compare does the matching and emits its three-set JSON; jq then
+    # buckets the only_in_* extras (logged, never a failure) and applies the
+    # committed allow-list to the differing set (the gate).
+    ALLOWLIST="$TARGET_DIR/oracle-allowlist.txt"
+    [ -f "$ALLOWLIST" ] || finish ERROR "missing oracle allow-list at $ALLOWLIST"
+
+    BEAR_NORM="$RESULTS_DIR/bear.norm.json"
+    ORACLE_NORM="$RESULTS_DIR/oracle.norm.json"
+    CMP_JSON="$RESULTS_DIR/oracle-compare.json"
+    REPORT="$RESULTS_DIR/oracle-report.json"
+
+    info "normalizing output fields to absolute object paths (build dir $BUILD_DIR)"
+    oracle_normalize_output bear  "$BUILD_DIR" "$FRESH"  "$BEAR_NORM"   || finish ERROR "jq normalize of Bear DB failed"
+    oracle_normalize_output cmake "$BUILD_DIR" "$ORACLE" "$ORACLE_NORM" || finish ERROR "jq normalize of CMake DB failed"
+
+    # Bear is side A, CMake is side B; substitute-compiler cc absorbs the
+    # compiler-driver path difference between the make-time command and CMake's
+    # configure-time command. Non-zero exit here just means "not equivalent",
+    # which is expected (the depfile flags differ); the gate is the allow-list.
+    info "comparing matched TUs (cdb-compare, substitute-compiler cc)"
+    CMP_ERR="$RESULTS_DIR/oracle-compare.stderr"
+    "$CDB_COMPARE" compare --substitute-compiler cc --format json "$BEAR_NORM" "$ORACLE_NORM" >"$CMP_JSON" 2>"$CMP_ERR" || true
+    if ! grep -q 'differing' "$CMP_JSON" 2>/dev/null; then
+        finish ERROR "cdb-compare did not produce a report (see $CMP_JSON and $CMP_ERR)"
+    fi
+
+    info "applying allow-list and bucketing extras"
+    set +e
+    SURVIVORS="$(oracle_report "$CMP_JSON" "$ALLOWLIST" "$REPORT")"
+    ORACLE_RC=$?
+    set -e
+
+    BEAR_ONLY="$(jq '.bear_only' "$REPORT")"
+    CMAKE_ONLY="$(jq '.cmake_only' "$REPORT")"
+    DIFF_TOTAL="$(jq '.differing_total' "$REPORT")"
+    info "extras (logged, not a gate): ${BEAR_ONLY} Bear-only, ${CMAKE_ONLY} CMake-only TUs"
+    info "matched TUs differing: ${DIFF_TOTAL}; after allow-list, survivors: ${SURVIVORS}"
+    info "full divergence report: $REPORT"
+
+    if [ "$ORACLE_RC" -eq 0 ]; then
+        finish PASS "matched TUs equivalent under the allow-list (oracle: ${DIFF_TOTAL} benign diffs suppressed; ${BEAR_ONLY}+${CMAKE_ONLY} extras logged)"
+    elif [ "$ORACLE_RC" -eq 1 ]; then
+        err "oracle mismatch: ${SURVIVORS} matched TUs differ beyond the allow-list"
+        err "survivors detailed in $REPORT (.survivors); add a documented allow-list rule only if the difference is genuinely benign"
+        finish FAIL "oracle mismatch: ${SURVIVORS} matched TUs diverge after the allow-list - see $REPORT"
+    else
+        # oracle_report could not produce a valid survivor count (jq write/parse
+        # failure): an infra problem, not a real mismatch.
+        finish ERROR "oracle report generation failed (jq/arithmetic); see $REPORT"
+    fi
+fi
+
+# === STEP 6 (golden): GATE (dogfood-golden-regression) =======================
 # Host cdb-compare gates the fresh CDB against the committed golden. On
 # --rebless, write the golden instead (dogfood-golden-rebless).
 #

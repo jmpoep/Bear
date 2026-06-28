@@ -1,16 +1,18 @@
-# Dogfooding harness specification - Stage 2
+# Dogfooding harness specification - Stages 2 and 3
 
-These are the Stage 2 `dogfood-*` contracts the harness under
-`tests/dogfooding/` satisfies. They are contracts on the TEST HARNESS, not on
-Bear, so they intentionally live here and NOT under `docs/requirements/` (which
-is reserved for Bear's own contracts). They are condensed from the staged plan;
-the plan is the source of intent, this file is the implemented spec.
+These are the `dogfood-*` contracts the harness under `tests/dogfooding/`
+satisfies. They are contracts on the TEST HARNESS, not on Bear, so they
+intentionally live here and NOT under `docs/requirements/` (which is reserved
+for Bear's own contracts). They are condensed from the staged plan; the plan is
+the source of intent, this file is the implemented spec.
 
 Scope: non-automated, run by the maintainer at release time. Bear's installed
-release binaries are run against a real project (zlib at a pinned tag) inside a
-throwaway container, and the captured compilation database is gated against a
-committed golden. Sources and toolchain live only in the container, never in
-the repo or the devcontainer image (feasibility.md Option C).
+release binaries are run against a real project inside a throwaway container,
+and the captured compilation database is validated. Sources and toolchain live
+only in the container, never in the repo or the devcontainer image
+(feasibility.md Option C). A per-target `VALIDATION` selector in `config.env`
+chooses the validation mode: `golden` (Stage 2, zlib) gates against a committed
+golden; `oracle` (Stage 3, curl) gates against the database CMake itself emits.
 
 ## dogfood-run-containerized
 
@@ -95,7 +97,62 @@ reports them as distinct outcomes. A target build that fails for its own reasons
 is "inconclusive", not a Bear regression.
 
 Implementation: four outcomes with distinct exit codes -
-`PASS=0`, `FAIL=1` (golden regression), `INCONCLUSIVE=2` (target build failed
-for its own reasons: target image build, configure/make), `ERROR=3` (harness or
-Bear-infra: podman missing, disk/digest preflight, base build, empty capture,
-missing host `cdb-compare`). `run.sh` prints one final `OUTCOME:` status line.
+`PASS=0`, `FAIL=1` (golden regression or oracle mismatch after the allow-list),
+`INCONCLUSIVE=2` (target build failed for its own reasons: target image build,
+configure/make), `ERROR=3` (harness or Bear-infra: podman missing, disk/digest
+preflight, base build, empty capture, missing host `cdb-compare`/`jq`). `run.sh`
+prints one final `OUTCOME:` status line.
+
+## dogfood-oracle-cmake (Stage 3)
+
+For a CMake-native target, the suite compares Bear's output against the database
+CMake itself emits (`CMAKE_EXPORT_COMPILE_COMMANDS=ON`), scoped to the
+intersection of translation units matched by `file`. The check passes when
+matched TUs have equivalent flags under normalization. Entries present in only
+one database are logged as "extras", never failures: CMake lists configured TUs
+with configure-time flags, while Bear records the actual make-time command, so
+a whole-database equality would be pure noise. The oracle renews itself when the
+target updates; no hand-maintained baseline. The oracle target is curl (CMake-
+native, small); zlib stays the Stage 2 golden target (autotools).
+
+Implementation: `targets/curl/config.env` sets `VALIDATION=oracle` and pins the
+fedora:44 base by digest, curl 8.11.1 by URL + sha256, and `BUILD_TYPE=Release`.
+The in-container command (dogfood-fixed-paths) configures out-of-tree (source
+`/src`, build `/build`) with `-DCMAKE_EXPORT_COMPILE_COMMANDS=ON` and the
+optional dependencies turned off (no TLS/nghttp2/zlib/zstd/brotli/psl/idn/ssh/
+ldap), so curl builds with just cmake+gcc+make. The CMake *configure* step is
+NOT wrapped by Bear (it is not a compile); only `cmake --build` is, so Bear's
+capture lands at `/out/compile_commands.json` and CMake's reference database is
+copied to `/out/oracle.json`. Both are pulled out with `podman cp`.
+
+The comparison reuses the host `cdb-compare` as-is. To match by translation unit
+correctly, both databases' `output` field is first normalized to the ABSOLUTE
+object path (Bear's `output` is relative to its `directory`; CMake's is relative
+to the top-level `BUILD_DIR`), so matching is effectively by source file plus
+the object it produces. Stripping `output` entirely was rejected: a source curl
+compiles into several targets (shared lib, static lib, tool) would collapse onto
+one key and be paired against the wrong target's flags. `cdb-compare compare
+--substitute-compiler cc --format json` then produces the three-set report;
+`only_in_a`/`only_in_b` are the extras (logged), `differing` is the gate.
+
+## dogfood-divergence-report (Stage 3)
+
+The Bear-only and CMake-only "extras" are reported for review, never a failure.
+A small, committed, documented allow-list may suppress KNOWN argument-level
+differences on matched TUs; the gate passes iff `differing` minus the allow-
+listed entries is empty. The allow-list is deliberately NOT used to hide
+coverage gaps (those are the extras), so it stays small.
+
+Implementation: `targets/curl/oracle-allowlist.txt` is the committed allow-list.
+Its only entries are the depfile-generation flag group - `flag -MD`,
+`flag-with-arg -MT`, `flag-with-arg -MF` - which the real make-time compile
+carries but CMake's configure-time `compile_commands.json` omits. They affect
+only the `.d` dependency side-file, never the object. On the pinned curl build
+this group is the ENTIRE matched-but-differing set (221/221 TUs); with the
+allow-list the surviving set is empty. The allow-list is applied SYMMETRICALLY
+to both sides of each differing entry (drop the listed tokens, then compare for
+equality), so a rule can only ever cancel exactly its own pattern; a real extra
+flag on one side alone survives and fails the gate. `run.sh` writes the full
+divergence report (extras + survivors) to `results/<target>/<label>/
+oracle-report.json`. There is no rebless for oracle targets - the oracle is
+self-renewing, so `--rebless` is rejected for them.
