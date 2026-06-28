@@ -322,3 +322,35 @@ adds a control that an honest CDB passes (no false positive), and prints a clear
 pass/fail. It needs no container and no `jq`, so it is fast and is the
 demonstrable-fault-catching deliverable. It is invoked as
 `tests/dogfooding/selftest.sh`.
+
+## dogfood-metrics-collect (Stage 5)
+
+While Bear builds a target, the suite can profile `bear-driver`'s CPU and memory
+with rprof (github.com/rizsotto/rprof) and keep the full capture as an artifact.
+The profiled subject is `bear-driver` SPECIFICALLY - the component that
+accumulates every intercepted execution and serializes the compilation database,
+so its memory is the load-bearing scaling signal; the short-lived per-exec
+preload and `bear-wrapper` are not profiled.
+
+This is intentionally NOT automated: the harness only COLLECTS the rprof JSONL -
+it never parses or summarizes it. The maintainer runs `rprof view` afterward to
+render and compare runs. (The in-run previous-release baseline and metrics-delta
+from plan.md Stage 5 are deliberately deferred; this scope is just the rprof
+capability.)
+
+Implementation: rprof (pinned to its `v1.0.0` release) is baked into the base
+image via the existing multi-stage build - compiled in the toolchain-carrying
+builder, the ~1 MB static binary copied into the toolchain-free final on PATH.
+The `--metrics` flag turns the build into `rprof run -o /out/metrics.jsonl --
+bear -- <build>`. Because the `bear` entry script execs `bear-driver` (same PID)
+and rprof measures the single launched process WITHOUT following descendants,
+this profiles exactly `bear-driver` and excludes the build's compiler processes -
+no PID gymnastics needed. The whole JSONL is copied to
+`results/<target>/<label>/metrics.jsonl` (determinism's two builds yield
+`metrics.run1.jsonl` / `metrics.run2.jsonl`).
+
+`--metrics` is an additive modifier: it layers on any mode (golden / oracle /
+determinism / invariants / replay), and on a gate-less (`VALIDATION=none`) target
+with no check mode it stands alone as a profiled build whose deliverable is the
+artifact. The metrics file is advisory - a missing file warns, never fails - and
+the wrapping is runner-controlled (rprof in the base is harmless when unused).

@@ -25,7 +25,7 @@ ENV RUSTUP_HOME=/root/.rustup \
 # curl for the rustup bootstrap. rustup gives a known >= 1.85 toolchain for
 # the Rust 2024 edition regardless of what fedora's packaged rust happens to
 # be (mirrors the devcontainer, which also bootstraps via rustup).
-RUN dnf -y install curl ca-certificates lld \
+RUN dnf -y install curl ca-certificates lld git \
     && dnf -y group install c-development \
     && dnf -y clean all \
     && rm -rf /var/cache/dnf \
@@ -44,6 +44,21 @@ RUN cargo build --release \
     && PREFIX=/opt/bear sh scripts/install.sh \
     && install -m 755 target/release/cdb-compare /opt/bear/bin/cdb-compare
 
+# rprof (github.com/rizsotto/rprof): a single-process resource profiler, pinned
+# by release tag, baked into the base so the harness can profile bear-driver's
+# CPU/memory during a build (dogfood-metrics-collect). Built here in the
+# toolchain-carrying builder and installed into /opt/bear/bin so the final stage
+# inherits it on PATH with no Rust toolchain (feasibility.md: multi-stage, copy
+# the binary). rprof measures the single launched process and ignores its
+# descendants, so `rprof run -- bear -- <build>` profiles exactly bear-driver
+# (the `bear` entry script execs the driver; the compilers are descendants).
+ARG RPROF_REF=v1.0.0
+RUN git clone https://github.com/rizsotto/rprof /tmp/rprof \
+    && git -C /tmp/rprof checkout "${RPROF_REF}" \
+    && cargo build --release --manifest-path /tmp/rprof/Cargo.toml \
+    && install -m 755 /tmp/rprof/target/release/rprof /opt/bear/bin/rprof \
+    && rm -rf /tmp/rprof
+
 FROM ${BASE_IMAGE} AS final
 
 # Copy the installed Bear tree and the comparator; no Rust toolchain here.
@@ -51,5 +66,6 @@ COPY --from=builder /opt/bear /opt/bear
 
 ENV PATH=/opt/bear/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
-# Sanity: the entry script and driver must be present and runnable.
-RUN bear --version
+# Sanity: the entry script and driver must be present and runnable, and rprof
+# (the metrics capability) must be on PATH.
+RUN bear --version && rprof --version

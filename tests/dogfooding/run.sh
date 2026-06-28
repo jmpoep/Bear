@@ -33,6 +33,7 @@
 #   tests/dogfooding/run.sh --determinism [--inject-fault] [--label L] [--keep] T
 #   tests/dogfooding/run.sh --invariants [--label L] [--keep] T
 #   tests/dogfooding/run.sh --replay[=N] [--label L] [--keep] T
+#   tests/dogfooding/run.sh --metrics [--invariants] [--label L] T  # + rprof profile
 #   tests/dogfooding/selftest.sh    # no container: prove the checks catch faults
 #
 #   --label L       name the per-run results subdirectory (default: local)
@@ -43,6 +44,10 @@
 #   --invariants    assert structural invariants on one capture (dogfood-invariants)
 #   --replay[=N]    replay up to N sampled entries in-container (dogfood-replay;
 #                   default N=20; also accepts `--replay N`)
+#   --metrics       additionally profile bear-driver's CPU/memory with rprof and
+#                   keep the full JSONL at results/<target>/<label>/metrics.jsonl
+#                   (dogfood-metrics-collect); layers on any mode, or stands alone
+#                   on a gate-less target. View/compare later with `rprof view`.
 #   --inject-fault  with --determinism, perturb the SECOND build with an extra
 #                   compiler flag so the captures legitimately diverge - a
 #                   self-test that the determinism check catches a fault
@@ -71,6 +76,7 @@ INJECT_FAULT=0
 INVARIANTS=0
 REPLAY=0
 REPLAY_COUNT=20
+METRICS=0
 TARGET=""
 
 while [ $# -gt 0 ]; do
@@ -83,9 +89,10 @@ while [ $# -gt 0 ]; do
         --invariants) INVARIANTS=1 ;;
         --replay) REPLAY=1 ;;
         --replay=*) REPLAY=1; REPLAY_COUNT="${1#--replay=}" ;;
+        --metrics) METRICS=1 ;;
         --keep) KEEP=1 ;;
         -h|--help)
-            sed -n '4,54p' "$HERE/run.sh" >&2
+            sed -n '4,60p' "$HERE/run.sh" >&2
             exit 0 ;;
         --*) finish ERROR "unknown option: $1" ;;
         *)
@@ -150,13 +157,20 @@ esac
 # A VALIDATION=none target has no default gate; a no-mode run cannot do anything
 # meaningful, so direct the caller to a Stage 4 check rather than failing later
 # on a missing golden.
-if [ "$MODE_COUNT" -eq 0 ] && [ "$VALIDATION" = "none" ]; then
-    finish ERROR "target '$TARGET' has no golden/oracle gate; run it with --invariants, --determinism, or --replay"
+if [ "$MODE_COUNT" -eq 0 ] && [ "$VALIDATION" = "none" ] && [ "$METRICS" -eq 0 ]; then
+    finish ERROR "target '$TARGET' has no golden/oracle gate; run it with --invariants, --determinism, --replay, or --metrics"
 fi
 
 GOLDEN="$HERE/goldens/$TARGET/compile_commands.json"
 RESULTS_DIR="$HERE/results/$TARGET/$LABEL"
 mkdir -p "$RESULTS_DIR"
+
+# rprof metrics artifact path, set only when --metrics is given (dogfood-metrics-
+# collect). Passed as the 6th arg to build_and_capture, which wraps the build
+# with rprof and copies the full JSONL here for `rprof view` later. --metrics is
+# an additive modifier: it layers on any mode, and on a gate-less target with no
+# check mode it stands alone as a profiled build (the metrics ARE the output).
+if [ "$METRICS" -eq 1 ]; then METRICS_DEST="$RESULTS_DIR/metrics.jsonl"; else METRICS_DEST=""; fi
 
 # Image / container names derived from the Bear commit under test, so a stale
 # cached image is never silently reused for a different Bear.
@@ -305,6 +319,7 @@ if [ "$DETERMINISM" -eq 1 ]; then
     RUN2="$RESULTS_DIR/compile_commands.run2.json"
     LOG1="$RESULTS_DIR/build.run1.log"
     LOG2="$RESULTS_DIR/build.run2.log"
+    if [ "$METRICS" -eq 1 ]; then M1="$RESULTS_DIR/metrics.run1.jsonl"; M2="$RESULTS_DIR/metrics.run2.jsonl"; else M1=""; M2=""; fi
 
     INJECT2=""
     if [ "$INJECT_FAULT" -eq 1 ]; then
@@ -316,9 +331,9 @@ if [ "$DETERMINISM" -eq 1 ]; then
     fi
 
     info "determinism run 1/2 (container $CONTAINER)"
-    build_and_capture "$CONTAINER" "$RUN1" "$LOG1" ""
+    build_and_capture "$CONTAINER" "$RUN1" "$LOG1" "" "" "$M1"
     info "determinism run 2/2 (container $CONTAINER2)"
-    build_and_capture "$CONTAINER2" "$RUN2" "$LOG2" "$INJECT2"
+    build_and_capture "$CONTAINER2" "$RUN2" "$LOG2" "$INJECT2" "" "$M2"
 
     DIFF_HUMAN="$RESULTS_DIR/determinism-diff.txt"
     DIFF_JSON="$RESULTS_DIR/determinism-diff.json"
@@ -371,7 +386,7 @@ if [ "$INVARIANTS" -eq 1 ]; then
     OBJECT_COUNT_CMD="${OBJECT_COUNT_CMD:-find \"$OBJECTS_DIR\" -name '*.o' 2>/dev/null | wc -l}"
     INV_POST="{ $OBJECT_COUNT_CMD ; } > /out/object_count 2>/dev/null"
 
-    build_and_capture "$CONTAINER" "$FRESH" "$BUILD_LOG" "" "$INV_POST"
+    build_and_capture "$CONTAINER" "$FRESH" "$BUILD_LOG" "" "$INV_POST" "$METRICS_DEST"
 
     OBJ_COUNT_FILE="$RESULTS_DIR/object_count"
     if ! podman cp "$CONTAINER:/out/object_count" "$OBJ_COUNT_FILE" >&2; then
@@ -449,7 +464,7 @@ replay_cdb /opt/bear/bin/cdb-compare /out/compile_commands.json $REPLAY_COUNT \"
 echo \$? > /out/replay_rc
 cat /out/replay_result"
 
-    build_and_capture "$CONTAINER" "$FRESH" "$BUILD_LOG" "" "$REPLAY_POST"
+    build_and_capture "$CONTAINER" "$FRESH" "$BUILD_LOG" "" "$REPLAY_POST" "$METRICS_DEST"
 
     REPLAY_RESULT="$RESULTS_DIR/replay_result"
     REPLAY_RC_FILE="$RESULTS_DIR/replay_rc"
@@ -474,6 +489,18 @@ cat /out/replay_result"
     esac
 fi
 
+# === STEP 5 (metrics-only): PROFILED BUILD ON A GATE-LESS TARGET ==============
+# --metrics with no check mode on a VALIDATION=none target: a profiled
+# build+capture whose deliverable is the rprof artifact (kept whole for
+# `rprof view`). Reachable only with --metrics, since the no-mode guard above
+# rejects a gate-less target otherwise.
+if [ "$MODE_COUNT" -eq 0 ] && [ "$VALIDATION" = "none" ]; then
+    FRESH="$RESULTS_DIR/compile_commands.json"
+    build_and_capture "$CONTAINER" "$FRESH" "$RESULTS_DIR/build.log" "" "" "$METRICS_DEST"
+    ENTRY_COUNT="$(grep -c '"file"' "$FRESH" 2>/dev/null || echo 0)"
+    finish PASS "metrics-only run: $ENTRY_COUNT entries captured; rprof metrics at $METRICS_DEST"
+fi
+
 # === STEP 5: REAL RUN (dogfood-run-containerized + dogfood-fixed-paths) =======
 # Run the real build wrapped by Bear at fixed path /src. Configure/make failure
 # => INCONCLUSIVE (target's own reasons). Empty captured CDB => ERROR. The
@@ -482,7 +509,7 @@ fi
 FRESH="$RESULTS_DIR/compile_commands.json"
 BUILD_LOG="$RESULTS_DIR/build.log"
 
-build_and_capture "$CONTAINER" "$FRESH" "$BUILD_LOG" ""
+build_and_capture "$CONTAINER" "$FRESH" "$BUILD_LOG" "" "" "$METRICS_DEST"
 
 # For oracle targets, also pull CMake's own database (the reference oracle the
 # in-container build wrote to /out/oracle.json).

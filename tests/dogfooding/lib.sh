@@ -115,6 +115,10 @@ preflight_image() {
 #       Used by invariants mode (write /out/object_count) and replay mode (run
 #       the replay loop and write /out/replay_result), which both need the
 #       container's source/object tree still present before teardown.
+#   $6  optional host path for the rprof metrics artifact (dogfood-metrics-
+#       collect). When non-empty, the build is profiled with rprof (via the
+#       RPROF_PREFIX env the target's TARGET_BUILD_CMD expands before `bear`) and
+#       /out/metrics.jsonl is copied here. Empty => plain bear, no profiling.
 #
 # Reads from the caller's environment: TARGET_TAG, TARGET_BUILD_CMD.
 #
@@ -129,11 +133,24 @@ build_and_capture() {
     _bac_log="$3"
     _bac_inject="$4"
     _bac_post="${5:-}"
+    _bac_metrics="${6:-}"
+
+    # When a metrics dest is given, profile bear-driver with rprof: the target's
+    # TARGET_BUILD_CMD expands ${RPROF_PREFIX:-} immediately before `bear`, so a
+    # non-empty value turns `bear -- <build>` into `rprof run -o ... -- bear --
+    # <build>`. rprof profiles the single bear/bear-driver process and ignores
+    # the compiler descendants. Empty => plain bear.
+    if [ -n "$_bac_metrics" ]; then
+        _bac_rprof="rprof run -o /out/metrics.jsonl --"
+    else
+        _bac_rprof=""
+    fi
 
     info "running real build in container $_bac_container"
     set +e
     podman run --systemd=always --name "$_bac_container" \
         --env "INJECT_CFLAGS=$_bac_inject" \
+        --env "RPROF_PREFIX=$_bac_rprof" \
         "$TARGET_TAG" sh -c "
         set -e
         mkdir -p /out
@@ -172,6 +189,18 @@ build_and_capture() {
         finish ERROR "empty capture from real build (interception produced nothing)"
     fi
     info "captured CDB: $_bac_dest"
+
+    # Pull the full rprof JSONL out when profiling was enabled. A missing file is
+    # a warning, not a failure: the build + capture already succeeded and metrics
+    # are an advisory by-product (dogfood-metrics-collect). The file is kept whole
+    # for `rprof view` to render/compare later; the harness never parses it.
+    if [ -n "$_bac_metrics" ]; then
+        if podman cp "$_bac_container:/out/metrics.jsonl" "$_bac_metrics" >&2; then
+            info "rprof metrics captured: $_bac_metrics"
+        else
+            warn "rprof metrics file not found in container (/out/metrics.jsonl)"
+        fi
+    fi
     return 0
 }
 

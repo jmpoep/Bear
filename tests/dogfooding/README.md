@@ -331,6 +331,25 @@ A control case (an honest CDB passes invariants) guards against false positives.
 The fixtures are hand-written and committed (outside the git-ignored `results/`)
 so the fault is unambiguous, not the product of fragile in-shell JSON surgery.
 
+## Metrics: profiling bear-driver with rprof (dogfood-metrics-collect)
+
+`--metrics` additionally profiles `bear-driver`'s CPU/memory with rprof while it
+builds the target, and keeps the FULL rprof JSONL at
+`results/<target>/<label>/metrics.jsonl` (determinism: `metrics.run1.jsonl` /
+`metrics.run2.jsonl`). It profiles `bear-driver` specifically - the `bear` entry
+script execs the driver and rprof measures only that process, not the compiler
+descendants.
+
+```sh
+tests/dogfooding/run.sh --metrics ffmpeg              # profiled build, metrics only
+tests/dogfooding/run.sh --metrics --invariants curl   # invariants + a profile
+tests/dogfooding/run.sh --metrics --determinism zlib  # two builds, two profiles
+```
+
+The harness only COLLECTS the file; it never parses or summarizes it. Render and
+compare runs yourself with `rprof view`. rprof (v1.0.0) is baked into the base
+image and is harmless when `--metrics` is not given.
+
 ## What the harness does NOT do
 
 - It does not modify the repo working tree, the devcontainer image, or any
