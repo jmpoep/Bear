@@ -15,10 +15,10 @@ ARG SRC_DIR=/src
 
 # Target build deps: gcc + make + perl build FFmpeg (perl drives some of the
 # build's text generation); pkgconfig + diffutils are probed by FFmpeg's
-# configure; tar + xz unpack the .tar.xz source. No nasm/yasm: the configure
-# flags disable all assembly, so FFmpeg builds with just gcc + make (see
-# config.env's TARGET_BUILD_CMD).
-RUN dnf -y install gcc make perl tar xz gzip pkgconfig diffutils \
+# configure; curl fetches the source; tar + xz unpack the .tar.xz source. No
+# nasm/yasm: the configure flags disable all assembly, so FFmpeg builds with
+# just gcc + make (see config.env's TARGET_BUILD_CMD).
+RUN dnf -y install gcc make perl curl tar xz gzip pkgconfig diffutils \
     && dnf -y clean all \
     && rm -rf /var/cache/dnf
 
