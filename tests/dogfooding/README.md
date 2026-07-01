@@ -45,25 +45,14 @@ rejected with a pointer to those flags.
   (`/etc/systemd/system/user@.service.d/delegate.conf` with
   `Delegate=cpu cpuset io memory pids`).
 
-- **The host `cdb-compare` binary** at `target/release/cdb-compare`. It does the
-  entire comparison for every check (matching, normalization, and the gate).
-  Build it with:
+- **No host `cdb-compare` needed.** Every comparison runs the `cdb-compare` that
+  ships inside the target image, so the harness needs no host binary and there is
+  no glibc-mismatch risk from copying one out. The one exception is the
+  container-less `internal/selftest.sh` (below), which builds and runs the
+  comparator locally in the same environment:
 
   ```sh
   cargo build --release -p bear-test-tools --bin cdb-compare
-  ```
-
-  If the host has no C toolchain, build it once in a container and copy it out
-  (the base image already builds it, so this reuses that build):
-
-  ```sh
-  podman build --build-arg \
-    BASE_IMAGE=registry.fedoraproject.org/fedora@sha256:3baf5f0dededfd939eb8f0b271ff8ad17bdb381cdd5768bd7d6f45bba795aa62 \
-    -f tests/dogfooding/base/Containerfile -t bear-dogfood-base:tmp .
-  cid="$(podman create bear-dogfood-base:tmp)"
-  mkdir -p target/release
-  podman cp "$cid:/opt/bear/bin/cdb-compare" target/release/cdb-compare
-  podman rm "$cid"
   ```
 
 - **Free disk** on the podman graphroot (zlib needs ~2 GiB, curl ~4 GiB for the
@@ -113,7 +102,7 @@ Every run prints one final `OUTCOME:` line and exits with:
 | PASS | 0 | The check passed. No regression. |
 | FAIL | 1 | The check failed -- a real behavioral change or defect in Bear's output. Read the artifact for that check (below) and either fix Bear or, for the golden, rebless. |
 | INCONCLUSIVE | 2 | The target build failed for its own reasons (source fetch, sha, network, configure/make, OOM), or a sampling check verified nothing (every sampled entry was inconclusive). Not a Bear regression. |
-| ERROR | 3 | Harness or Bear-infrastructure failure: podman missing, disk/digest preflight, base image build, an empty capture (a `libexec` / `INTERCEPT_LIBDIR` mismatch), an oracle that matched 0 units, or a missing `cdb-compare`. |
+| ERROR | 3 | Harness or Bear-infrastructure failure: podman missing, disk/digest preflight, base or target image build, an empty capture (a `libexec` / `INTERCEPT_LIBDIR` mismatch), or an oracle that matched 0 units. |
 
 ## Understanding a FAIL
 

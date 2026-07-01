@@ -94,6 +94,26 @@ preflight_image() {
     return 0
 }
 
+# --- cdb_compare (dogfood-run-containerized) ----------------------------------
+#
+# Run the release cdb-compare that ships inside the target image, against files
+# in the run directory. The comparison stays in the container model the rest of
+# the harness uses: the host needs no cdb-compare binary, and there is no
+# glibc-mismatch risk from copying the image's dynamically linked binary out to
+# an arbitrary host. RESULTS_DIR is bind-mounted read-only at /run, so callers
+# pass in-container paths (`/run/<file>`, e.g. "/run/${FRESH##*/}"). The report
+# goes to stdout and the exit code propagates, so the existing `>"$REPORT"`
+# redirects and `if cdb_compare ...; then` gates are unchanged from the former
+# host-binary calls. All gates run after build_and_capture, so TARGET_TAG (which
+# carries /opt/bear/bin/cdb-compare) always exists by the time this is called.
+#
+# Reads from the caller's environment: TARGET_TAG, RESULTS_DIR.
+cdb_compare() {
+    podman run --rm \
+        -v "$RESULTS_DIR":/run:ro,z \
+        "$TARGET_TAG" /opt/bear/bin/cdb-compare "$@"
+}
+
 # --- build-and-capture (dogfood-run-containerized + dogfood-fixed-paths) ------
 #
 # Run the real target build wrapped by Bear in a fresh throwaway container and
@@ -210,5 +230,6 @@ build_and_capture() {
 # absolute object path (`--output-from-o`), dropping the benign `-M*` depfile
 # flags (`--drop-dependency-flags`), bucketing one-sided entries as advisory
 # extras and gating on matched-but-differing only (`--intersection`) - is done
-# by the host cdb-compare (see run.sh STEP 6). No jq and no allow-list file: the
-# equivalence logic lives in the unit-tested tests/tools crate, not in shell.
+# by the image's cdb-compare (via `cdb_compare`, see run.sh STEP 6). No jq and no
+# allow-list file: the equivalence logic lives in the unit-tested tests/tools
+# crate, not in shell.

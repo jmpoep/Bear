@@ -235,14 +235,10 @@ require_podman
 preflight_disk "$MIN_FREE_KIB" || finish ERROR "disk preflight failed"
 preflight_image "$BASE_IMAGE"  || finish ERROR "pinned base image unavailable: $BASE_IMAGE"
 
-# The host comparator is the gate; check it now so a missing binary fails fast
-# instead of after the multi-minute image builds and the real run.
-CDB_COMPARE="$REPO_ROOT/target/release/cdb-compare"
-if [ ! -x "$CDB_COMPARE" ]; then
-    err "host cdb-compare not found at $CDB_COMPARE"
-    err "build it with: cargo build --release -p bear-test-tools --bin cdb-compare"
-    finish ERROR "host cdb-compare binary missing"
-fi
+# The comparator (cdb-compare) ships inside the target image and every gate runs
+# it there via cdb_compare (dogfood-run-containerized), so there is no host
+# binary to preflight - a missing/broken image is already caught by the base and
+# target image builds below.
 
 # --rebless has no meaning for an oracle target (there is no committed golden;
 # the reference is CMake's own database, regenerated each run).
@@ -369,20 +365,20 @@ if [ "$DETERMINISM" -eq 1 ]; then
     DIFF_JSON="$RESULTS_DIR/determinism-diff.json"
 
     info "comparing the two captures (cdb-compare compare, no normalization)"
-    if "$CDB_COMPARE" compare "$RUN1" "$RUN2" >"$DIFF_HUMAN" 2>&1; then
+    if cdb_compare compare "/run/${RUN1##*/}" "/run/${RUN2##*/}" >"$DIFF_HUMAN" 2>&1; then
         cat "$DIFF_HUMAN" >&2
         finish PASS "the two captures are equivalent (no non-determinism)"
     else
         cat "$DIFF_HUMAN" >&2
-        "$CDB_COMPARE" compare --format json "$RUN1" "$RUN2" >"$DIFF_JSON" 2>&1 || true
+        cdb_compare compare --format json "/run/${RUN1##*/}" "/run/${RUN2##*/}" >"$DIFF_JSON" 2>&1 || true
         err "the two captures differ; diffs saved to $DIFF_HUMAN and $DIFF_JSON"
         finish FAIL "captures differ across two identical builds (Bear non-determinism) - see $DIFF_HUMAN"
     fi
 fi
 
 # === STEP 5 (invariants): ONE BUILD + STRUCTURAL INVARIANTS (dogfood-invariants)
-# Stage 4 self-check: build+capture once, then assert structural invariants on
-# the single capture with the host cdb-compare, and gate on its exit code. No
+# Build+capture once, then assert structural invariants on the single capture
+# with the image's cdb-compare (via cdb_compare), and gate on its exit code. No
 # golden, no oracle. The checks: non-empty-arguments and no-true-duplicates
 # (always), plus entry-count against the number of object files the build
 # actually produced (opt-in via --expected-objects).
@@ -444,8 +440,8 @@ if [ "$INVARIANTS" -eq 1 ]; then
     info "asserting structural invariants (cdb-compare invariants)"
     set +e
     # shellcheck disable=SC2086  # COUNT_ARGS is a deliberate word list (may be empty)
-    "$CDB_COMPARE" invariants --drop-dependency-flags $COUNT_ARGS \
-        --format human "$FRESH" >"$REPORT" 2>&1
+    cdb_compare invariants --drop-dependency-flags $COUNT_ARGS \
+        --format human "/run/${FRESH##*/}" >"$REPORT" 2>&1
     INV_RC=$?
     set -e
     cat "$REPORT" >&2
@@ -654,11 +650,11 @@ if [ "$VALIDATION" = "oracle" ]; then
     info "comparing Bear vs CMake on the TU intersection (cdb-compare)"
     set +e
     # shellcheck disable=SC2086  # NORM_FLAGS is a deliberate word list
-    "$CDB_COMPARE" compare --intersection $NORM_FLAGS "$FRESH" "$ORACLE" >"$REPORT" 2>&1
+    cdb_compare compare --intersection $NORM_FLAGS "/run/${FRESH##*/}" "/run/${ORACLE##*/}" >"$REPORT" 2>&1
     ORACLE_RC=$?
     # Archive a machine-readable copy of the three-set report (same normalization).
     # shellcheck disable=SC2086
-    "$CDB_COMPARE" compare $NORM_FLAGS --format json "$FRESH" "$ORACLE" >"$REPORT_JSON" 2>/dev/null
+    cdb_compare compare $NORM_FLAGS --format json "/run/${FRESH##*/}" "/run/${ORACLE##*/}" >"$REPORT_JSON" 2>/dev/null
     set -e
 
     # The `summary:` line is printed only when cdb-compare ran to completion in
@@ -689,8 +685,8 @@ if [ "$VALIDATION" = "oracle" ]; then
 fi
 
 # === STEP 6 (golden): GATE (dogfood-golden-regression) =======================
-# Host cdb-compare gates the fresh CDB against the committed golden. On
-# --rebless, write the golden instead (dogfood-golden-rebless).
+# The image's cdb-compare (via cdb_compare) gates the fresh CDB against the
+# committed golden. On --rebless, write the golden instead (dogfood-golden-rebless).
 #
 # Per the resolved decision, no normalization flags are used: the same pinned
 # image and fixed /src path make the raw multiset reproducible. If a benign
@@ -700,9 +696,13 @@ fi
 if [ "$REBLESS" -eq 1 ]; then
     info "reblessing golden: $GOLDEN"
     mkdir -p "$(dirname "$GOLDEN")"
-    if ! "$CDB_COMPARE" normalize --sort "$FRESH" -o "$GOLDEN" >&2; then
+    # normalize writes to stdout (no -o); capture it on the host, then install it
+    # atomically so a failed normalize never leaves a truncated golden.
+    if ! cdb_compare normalize --sort "/run/${FRESH##*/}" >"$RESULTS_DIR/golden.new.json"; then
+        rm -f "$RESULTS_DIR/golden.new.json"
         finish ERROR "cdb-compare normalize failed during rebless"
     fi
+    mv "$RESULTS_DIR/golden.new.json" "$GOLDEN"
     info "golden rewritten from this run; review and commit it"
     finish PASS "reblessed golden at $GOLDEN"
 fi
@@ -716,13 +716,17 @@ info "gating fresh CDB against golden"
 DIFF_HUMAN="$RESULTS_DIR/golden-diff.txt"
 DIFF_JSON="$RESULTS_DIR/golden-diff.json"
 
-if "$CDB_COMPARE" compare "$GOLDEN" "$FRESH" >"$DIFF_HUMAN" 2>&1; then
+# Stage the committed golden into the run dir so the single read-only /run mount
+# covers both sides of the comparison (the fresh capture already lives there).
+cp "$GOLDEN" "$RESULTS_DIR/golden.json"
+
+if cdb_compare compare /run/golden.json "/run/${FRESH##*/}" >"$DIFF_HUMAN" 2>&1; then
     cat "$DIFF_HUMAN" >&2
     finish PASS "fresh CDB matches golden (no regression)"
 else
     cat "$DIFF_HUMAN" >&2
     # Save a machine-readable diff alongside the human one for review.
-    "$CDB_COMPARE" compare --format json "$GOLDEN" "$FRESH" >"$DIFF_JSON" 2>&1 || true
+    cdb_compare compare --format json /run/golden.json "/run/${FRESH##*/}" >"$DIFF_JSON" 2>&1 || true
     err "golden mismatch; diffs saved to $DIFF_HUMAN and $DIFF_JSON"
     finish FAIL "fresh CDB differs from golden (regression) - see $DIFF_HUMAN"
 fi

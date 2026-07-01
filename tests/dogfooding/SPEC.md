@@ -31,9 +31,14 @@ POSIX `sh` on the host, each target runs in a per-project throwaway container).
   consumer fault demo.
 - **Metrics** -- `dogfood-metrics-collect`, an additive profiling modifier.
 
-The only Rust dependency is the host `cdb-compare` binary (package
-`bear-test-tools`): it does the entire comparison for every check -- matching,
-normalization, and the gate -- so the harness needs no `jq`.
+All comparison, normalization, and gating is done by `cdb-compare` (package
+`bear-test-tools`), so the harness needs no `jq`. `run.sh` runs the copy that
+ships inside the target image (dogfood-run-containerized), so it needs no host
+binary and there is no glibc-mismatch risk from copying the image's dynamically
+linked comparator onto an arbitrary host. The one exception is `selftest.sh`,
+which never builds an image and so runs a locally built
+`target/release/cdb-compare` on the host -- built and run in the same
+environment, so no cross-libc concern.
 
 ## dogfood-run-containerized
 
@@ -50,6 +55,19 @@ Implementation: Bear is built inside the base image from `git archive HEAD`
 (default `INTERCEPT_LIBDIR=lib`), giving the layout
 `/opt/bear/bin/bear` -> `/opt/bear/libexec/bear/bin/bear-driver` +
 `../lib/libexec.so`. The base carries no Rust toolchain (multi-stage build).
+
+The comparator stays in the container model too. The base image also installs
+`/opt/bear/bin/cdb-compare`, and every host-side gate (golden, oracle,
+determinism, invariants, rebless) runs it there rather than on the host, via the
+`cdb_compare` helper in `lib.sh`: it `podman run`s the target image with the run
+directory bind-mounted read-only at `/run`, passing `/run/<file>` paths, and the
+report/exit code propagate back to the host. So `run.sh` needs no host
+`cdb-compare` (removing the copy-out fragility of a dynamically linked binary),
+and the comparison is the same version that shipped with the Bear under test.
+The golden compare stages the committed golden into the run directory first, so
+one read-only mount covers both sides; rebless captures `normalize`'s stdout on
+the host and installs it atomically. The in-container `sample` for replay/consumer
+already used this image binary.
 
 ## dogfood-fixed-paths
 
@@ -95,8 +113,8 @@ Implementation: four outcomes with distinct exit codes -
 `PASS=0`, `FAIL=1` (golden regression, or oracle matched-TU divergence),
 `INCONCLUSIVE=2` (target build failed for its own reasons: target image build,
 configure/make), `ERROR=3` (harness or Bear-infra: podman missing, disk/digest
-preflight, base build, empty capture, an oracle that matched 0 TUs, missing host
-`cdb-compare`). `run.sh` prints one final `OUTCOME:` status line.
+preflight, base or target image build, empty capture, an oracle that matched 0
+TUs). `run.sh` prints one final `OUTCOME:` status line.
 
 ## dogfood-golden-regression
 
@@ -109,10 +127,12 @@ hash-manifest tooling is added. The golden is a change-detector, not an
 independent proof of correctness.
 
 Implementation: `goldens/zlib/compile_commands.json` is the frozen golden; the
-gate is `cdb-compare compare <golden> <fresh>` run on the host. No normalization
-flags are used (same pinned image + fixed `/src` => raw multiset matches); if a
-benign compiler-path diff ever appears, add `--substitute-compiler cc` to both
-the bless and the check, consistently.
+gate is `cdb-compare compare <golden> <fresh>` run in the target image (via
+`cdb_compare`, dogfood-run-containerized), with the golden staged into the run
+directory so one read-only mount covers both sides. No normalization flags are
+used (same pinned image + fixed `/src` => raw multiset matches); if a benign
+compiler-path diff ever appears, add `--substitute-compiler cc` to both the
+bless and the check, consistently.
 
 ## dogfood-golden-rebless
 
@@ -120,10 +140,11 @@ There is a documented, deliberate procedure to regenerate the golden when a
 behavior change is intentional, so re-blessing is explicit and reviewable rather
 than automatic.
 
-Implementation: `run.sh --rebless <target>` runs the full pipeline, then writes
-`cdb-compare normalize --sort <fresh>` to the golden path instead of gating, and
-reports "reblessed" for the maintainer to review and commit. See README.md for
-the maintainer-facing procedure.
+Implementation: `run.sh --rebless <target>` runs the full pipeline, then instead
+of gating runs `cdb-compare normalize --sort <fresh>` in the target image (via
+`cdb_compare`), captures its stdout on the host, and installs it atomically at
+the golden path, reporting "reblessed" for the maintainer to review and commit.
+See README.md for the maintainer-facing procedure.
 
 ## dogfood-oracle-cmake
 
@@ -147,8 +168,8 @@ NOT wrapped by Bear (it is not a compile); only `cmake --build` is, so Bear's
 capture lands at `/out/compile_commands.json` and CMake's reference database is
 copied to `/out/oracle.json`. Both are pulled out with `podman cp`.
 
-The comparison is done entirely by the host `cdb-compare` - no allow-list file,
-no shell JSON surgery:
+The comparison is done entirely by the image's `cdb-compare` (via `cdb_compare`)
+- no allow-list file, no shell JSON surgery:
 
 ```sh
 cdb-compare compare --intersection --substitute-compiler cc \
@@ -212,7 +233,8 @@ run), then runs the target build TWICE in two distinct fresh throwaway
 containers off the same pinned image (`build_and_capture` in `lib.sh`, invoked
 once per container - the same body the normal single-run path uses, so the
 build-failure taxonomy is identical), and compares the two captures with
-`cdb-compare compare <run1> <run2>`. NO normalization flags are used: the fixed
+`cdb-compare compare <run1> <run2>` (via `cdb_compare`, in the target image). NO
+normalization flags are used: the fixed
 build paths (`/src`, `/build`) make the two captures multiset-equivalent at the
 source, and `cdb-compare` is order-independent, so build parallelism does not
 matter. The golden/oracle gate is SKIPPED entirely (determinism is its own
@@ -223,7 +245,7 @@ Outcome (reusing the existing taxonomy): both captures equivalent => PASS;
 captures differ => FAIL (real Bear non-determinism / a race), with the
 `cdb-compare compare` diff saved to `results/<target>/<label>/determinism-diff.txt`
 (and `.json`); either build failing for its own reasons => INCONCLUSIVE;
-podman/infra/empty-capture/missing host `cdb-compare` => ERROR. Both captures
+podman/infra/empty-capture => ERROR. Both captures
 are written as `compile_commands.run1.json` and `compile_commands.run2.json`.
 Determinism is verified on both zlib and curl.
 
@@ -258,8 +280,9 @@ independently reported. No golden, no oracle, no maintained baseline.
 
 Implementation: `run.sh --invariants <target>` runs the shared preflight, image
 builds, and smoke, builds+captures once (`build_and_capture`), then gates on the
-exit code of one host `cdb-compare invariants --drop-dependency-flags
---expected-objects <N> --tolerance <PCT> --format human <capture>`. The whole
+exit code of one in-image `cdb-compare invariants --drop-dependency-flags
+--expected-objects <N> --tolerance <PCT> --format human <capture>` (via
+`cdb_compare`). The whole
 structural check - non-empty-arguments, non-empty-directory, no-true-duplicates,
 and the entry-count band - lives in the unit-tested comparator (defined in
 `tests/tools/SPEC.md`); the harness only supplies `<N>` and `<PCT>` and gates
@@ -489,6 +512,13 @@ adds a control that an honest CDB passes (no false positive), and prints a clear
 pass/fail. It needs no container, so it is fast. It is invoked as
 `tests/dogfooding/internal/selftest.sh`.
 
+Unlike the containerized gates, this is the one path that never builds an image,
+so it runs a locally built `target/release/cdb-compare` on the host (built with
+`cargo build --release -p bear-test-tools --bin cdb-compare`) - the sole host-
+binary user in the harness. Because it is built and run in the same environment,
+there is no cross-libc concern; if the binary is missing it exits with that build
+hint.
+
 ## dogfood-metrics-collect
 
 While Bear builds a target, the suite can profile `bear-driver`'s CPU and memory
@@ -545,7 +575,7 @@ by `--invariants` / `--determinism` / `--replay` / `--consumer`.
 
 ## Extending cdb-compare
 
-Every comparison, normalization, and structural check lives in the host
+Every comparison, normalization, and structural check lives in the
 `cdb-compare` binary (package `bear-test-tools`, `crates`/`tests/tools`), not in
 shell. That is deliberate: the logic is unit-tested in one place. When a target
 surfaces a new benign difference (e.g. an oracle argument mismatch that
