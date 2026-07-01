@@ -23,8 +23,8 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$HERE/../.." && pwd)"
 FAULTS="$HERE/faults"
 
-# shellcheck source=tests/dogfooding/replay-loop.sh
-. "$HERE/replay-loop.sh"
+# shellcheck source=tests/dogfooding/internal/replay-loop.sh
+. "$HERE/internal/replay-loop.sh"
 
 CDB_COMPARE="$REPO_ROOT/target/release/cdb-compare"
 if [ ! -x "$CDB_COMPARE" ]; then

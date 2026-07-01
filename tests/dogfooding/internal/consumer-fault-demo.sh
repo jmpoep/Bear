@@ -9,8 +9,8 @@
 # the maintainer against the curl target image:
 #
 #   podman run --rm \
-#       -v tests/dogfooding/consumer-loop.sh:/consumer-loop.sh:ro,Z \
-#       -v tests/dogfooding/consumer-fault-demo.sh:/demo.sh:ro,Z \
+#       -v tests/dogfooding/internal/consumer-loop.sh:/consumer-loop.sh:ro,Z \
+#       -v tests/dogfooding/internal/consumer-fault-demo.sh:/demo.sh:ro,Z \
 #       bear-dogfood-curl:<tag> sh /demo.sh
 #
 # It builds curl (so the captured CDB, sources, and headers exist), takes a
@@ -28,7 +28,7 @@
 
 set -eu
 
-# shellcheck source=tests/dogfooding/consumer-loop.sh
+# shellcheck source=tests/dogfooding/internal/consumer-loop.sh
 . /consumer-loop.sh
 
 CDB_COMPARE="${CDB_COMPARE:-/opt/bear/bin/cdb-compare}"

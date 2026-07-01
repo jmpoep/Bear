@@ -1,4 +1,3 @@
-#!/bin/sh
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 # Sourced helpers for the dogfooding harness: logging, outcome/exit-code

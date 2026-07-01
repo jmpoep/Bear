@@ -439,8 +439,8 @@ image:
 
 ```sh
 podman run --rm --systemd=always \
-    -v tests/dogfooding/consumer-loop.sh:/consumer-loop.sh:ro,Z \
-    -v tests/dogfooding/consumer-fault-demo.sh:/demo.sh:ro,Z \
+    -v tests/dogfooding/internal/consumer-loop.sh:/consumer-loop.sh:ro,Z \
+    -v tests/dogfooding/internal/consumer-fault-demo.sh:/demo.sh:ro,Z \
     bear-dogfood-curl:<sha> sh /demo.sh
 ```
 

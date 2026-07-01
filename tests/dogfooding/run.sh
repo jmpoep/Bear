@@ -74,8 +74,8 @@ set -eu
 HERE="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$HERE/../.." && pwd)"
 
-# shellcheck source=tests/dogfooding/lib.sh
-. "$HERE/lib.sh"
+# shellcheck source=tests/dogfooding/internal/lib.sh
+. "$HERE/internal/lib.sh"
 
 # --- argument parsing --------------------------------------------------------
 
@@ -487,8 +487,8 @@ if [ "$REPLAY" -eq 1 ]; then
     # function writes its OK/FAIL/INCONCLUSIVE tally and any failing commands to
     # /out/replay_result; its return code is recorded to /out/replay_rc so the
     # host can gate on it without parsing JSON.
-    [ -f "$HERE/replay-loop.sh" ] || finish ERROR "replay-loop.sh missing next to run.sh (commit the harness)"
-    REPLAY_FN="$(cat "$HERE/replay-loop.sh")"
+    [ -f "$HERE/internal/replay-loop.sh" ] || finish ERROR "internal/replay-loop.sh missing (commit the harness)"
+    REPLAY_FN="$(cat "$HERE/internal/replay-loop.sh")"
     REPLAY_POST="$REPLAY_FN
 replay_cdb /opt/bear/bin/cdb-compare /out/compile_commands.json $REPLAY_COUNT \"$REPLAY_BUILD_DIR\" /out/replay_result
 echo \$? > /out/replay_rc
@@ -560,8 +560,8 @@ if [ "$CONSUMER" -eq 1 ]; then
     # /out/consumer_result; its return code is recorded to /out/consumer_rc so the
     # host gates on it without parsing JSON. The capture stays at /out alongside
     # consumer_result; clang-tidy reads it via the -p flag the consumer loop passes.
-    [ -f "$HERE/consumer-loop.sh" ] || finish ERROR "consumer-loop.sh missing next to run.sh (commit the harness)"
-    CONSUMER_FN="$(cat "$HERE/consumer-loop.sh")"
+    [ -f "$HERE/internal/consumer-loop.sh" ] || finish ERROR "internal/consumer-loop.sh missing (commit the harness)"
+    CONSUMER_FN="$(cat "$HERE/internal/consumer-loop.sh")"
     CONSUMER_POST="$CONSUMER_FN
 consumer_cdb /opt/bear/bin/cdb-compare /out/compile_commands.json $CONSUMER_COUNT \"$CONSUMER_BUILD_DIR\" /out/consumer_result
 echo \$? > /out/consumer_rc
