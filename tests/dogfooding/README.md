@@ -98,7 +98,7 @@ tests/dogfooding/run.sh --keep                 # keep the container for inspecti
 tests/dogfooding/run.sh --metrics ffmpeg       # also profile bear-driver (see below)
 
 # Prove the checks actually catch faults, without a container (fast).
-tests/dogfooding/selftest.sh
+tests/dogfooding/internal/selftest.sh
 ```
 
 Run artifacts land under `results/<target>/<label>/` (git-ignored). Goldens

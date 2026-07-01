@@ -487,7 +487,7 @@ fixtures and the SAME `replay-loop.sh` function (host-side) against the
 bad-directory fixture, asserts each check exits non-zero (the fault was caught),
 adds a control that an honest CDB passes (no false positive), and prints a clear
 pass/fail. It needs no container, so it is fast. It is invoked as
-`tests/dogfooding/selftest.sh`.
+`tests/dogfooding/internal/selftest.sh`.
 
 ## dogfood-metrics-collect
 

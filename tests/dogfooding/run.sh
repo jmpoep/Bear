@@ -42,7 +42,7 @@
 #   tests/dogfooding/run.sh --replay[=N] [--label L] [--keep] T
 #   tests/dogfooding/run.sh --consumer[=N] [--label L] [--keep] T
 #   tests/dogfooding/run.sh --metrics [--invariants] [--label L] T  # + rprof profile
-#   tests/dogfooding/selftest.sh    # no container: prove the checks catch faults
+#   tests/dogfooding/internal/selftest.sh  # no container: prove the checks catch faults
 #
 #   --label L       name the per-run results subdirectory (default: local)
 #   --rebless       regenerate the committed golden from this run instead of

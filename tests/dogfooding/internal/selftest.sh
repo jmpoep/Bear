@@ -13,18 +13,18 @@
 # fault slips through, the self-test fails.
 #
 # Usage:
-#   tests/dogfooding/selftest.sh
+#   tests/dogfooding/internal/selftest.sh
 #
 # Exit 0 = every fault was caught; exit 1 = a fault was missed (or infra error).
 
 set -eu
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
-REPO_ROOT="$(cd "$HERE/../.." && pwd)"
-FAULTS="$HERE/faults"
+REPO_ROOT="$(cd "$HERE/../../.." && pwd)"
+FAULTS="$HERE/../faults"
 
 # shellcheck source=tests/dogfooding/internal/replay-loop.sh
-. "$HERE/internal/replay-loop.sh"
+. "$HERE/replay-loop.sh"
 
 CDB_COMPARE="$REPO_ROOT/target/release/cdb-compare"
 if [ ! -x "$CDB_COMPARE" ]; then
