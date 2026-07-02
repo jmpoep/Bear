@@ -37,7 +37,7 @@ Bear can operate in three modes:
 : Specify the output file path (default: `compile_commands.json`). The output is a JSON compilation database.
 
 **-a, \-\-append**
-: Append results to an existing output file instead of overwriting it. This allows incremental updates to the compilation database.
+: Append results to an existing output file instead of overwriting it. This allows incremental updates to the compilation database. New entries are placed before the existing ones, so when a source file is rebuilt its newest invocation survives duplicate filtering and replaces the stale entry (see the `duplicates` section).
 
 **-h, \-\-help**
 : Print help information.
@@ -183,9 +183,9 @@ Directory rules are evaluated in order, with the last matching rule determining 
 
 ### duplicates
 
-Filtering functionality based on duplicate detection. Here you can define which fields of the output file should be used in the duplicate detection.
+Filtering functionality based on duplicate detection. Here you can define which fields of the output file should be used in the duplicate detection. Two entries are duplicates when all of the configured fields match; the first occurrence is kept and later duplicates are dropped.
 
-- **match_on**: List of fields to use for duplicate detection (file, arguments, directory, command, output)
+- **match_on**: List of fields to use for duplicate detection (file, arguments, directory, command, output). The default is `directory` and `file`, so by default one entry is kept per source file per directory, regardless of the compiler arguments. A consequence is that when a single build compiles the same file from the same directory with different flags, only one entry is kept (the first seen); add `arguments` to `match_on` to keep a separate entry per configuration. Combined with `--append` (new entries first), the default means a rebuilt file's newest invocation replaces its stale entry.
 
 ### format
 

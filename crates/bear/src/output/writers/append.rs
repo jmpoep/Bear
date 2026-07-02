@@ -72,7 +72,7 @@ impl<T: IteratorWriter<clang::Entry>> IteratorWriter<clang::Entry> for AppendCla
                 stats.entries_read_from_existing.fetch_add(1, Ordering::Relaxed);
             });
 
-            let final_entries = counted_existing.chain(entries);
+            let final_entries = entries.chain(counted_existing);
             self.writer.write(final_entries)
         } else {
             self.writer.write(entries)
@@ -108,6 +108,7 @@ mod tests {
         assert!(content.contains("file2.cpp"));
     }
 
+    // Requirements: output-append
     #[test]
     fn test_append_clang_output_writer_with_original_file() {
         let dir = tempfile::tempdir().unwrap();
@@ -139,6 +140,20 @@ mod tests {
         assert!(content.contains("file2.cpp"));
         assert!(content.contains("file3.cpp"));
         assert!(content.contains("file4.cpp"));
+
+        // New entries must be emitted before the existing ones.
+        let pos_new1 = content.find("file1.cpp").unwrap();
+        let pos_new2 = content.find("file2.cpp").unwrap();
+        let pos_existing3 = content.find("file3.cpp").unwrap();
+        let pos_existing4 = content.find("file4.cpp").unwrap();
+        assert!(
+            pos_new1 < pos_existing3 && pos_new2 < pos_existing3,
+            "new entries must come before existing entries in the merged output"
+        );
+        assert!(
+            pos_new1 < pos_existing4 && pos_new2 < pos_existing4,
+            "new entries must come before existing entries in the merged output"
+        );
     }
 
     #[test]

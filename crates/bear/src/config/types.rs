@@ -184,7 +184,7 @@ pub struct DuplicateFilter {
 
 impl Default for DuplicateFilter {
     fn default() -> Self {
-        Self { match_on: vec![OutputFields::Directory, OutputFields::File, OutputFields::Arguments] }
+        Self { match_on: vec![OutputFields::Directory, OutputFields::File] }
     }
 }
 

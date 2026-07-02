@@ -9,11 +9,18 @@ When the user performs incremental builds or builds separate components at
 different times, they need to accumulate compilation entries across multiple
 Bear runs into a single compilation database. The `--append` flag merges new
 entries with an existing `compile_commands.json` instead of overwriting it.
+New entries are emitted before the existing ones so that, after duplicate
+filtering, a file rebuilt with different flags keeps its newest invocation
+instead of retaining the stale entry from the previous run.
 
 ## Acceptance criteria
 
-- When `--append` is specified and the output file exists, existing entries
-  are preserved and new entries are added after them
+- When `--append` is specified and the output file exists, new entries are
+  emitted first and the existing entries follow
+- New entries appear before existing entries in the combined output
+- When a source file is present in both the new build and the existing
+  database, duplicate filtering (`output-duplicate-detection`) keeps the new
+  entry and drops the old one, so the recorded flags reflect the latest build
 - When `--append` is specified and the output file does not exist, Bear logs
   a warning and writes only the new entries (no error)
 - When `--append` is not specified, the output file is overwritten with only
@@ -23,8 +30,7 @@ entries with an existing `compile_commands.json` instead of overwriting it.
 - When the existing file opens but contains invalid JSON or invalid entries,
   Bear skips invalid entries individually with a logged warning per entry
   and preserves valid entries
-- Existing entries appear before new entries in the combined output
-- The combined output (existing + new) passes through the rest of the output
+- The combined output (new + existing) passes through the rest of the output
   pipeline (duplicate filtering, source filtering, atomic write)
 
 ## Non-functional constraints
@@ -75,11 +81,18 @@ compiler invocations:
 > then the existing entries are preserved unchanged.
 
 Given an existing `compile_commands.json` with an entry for file1.c compiled
+with `-O2`, and a new build that compiles file1.c with `-O3`:
+
+> When the user runs `bear --append -- <compiler> -c -O3 file1.c`,
+> then only one entry for file1.c appears, recording the `-O3` flags
+> (the new entry replaces the old, because default duplicate matching ignores
+> arguments and new entries come first).
+
+Given an existing `compile_commands.json` with an entry for file1.c compiled
 with `-O2`, and a new build that compiles file1.c with identical flags:
 
 > When the user runs `bear --append -- <compiler> -c -O2 file1.c`,
-> then the duplicate filter determines whether both entries survive,
-> and the original entry (from the existing database) takes priority.
+> then only one entry for file1.c appears (the duplicate is collapsed).
 
 ## Notes
 
@@ -88,5 +101,12 @@ with `-O2`, and a new build that compiles file1.c with identical flags:
   implementation uses iterators but the underlying JSON parser may still
   buffer the full file.
 - GitHub PR #497 introduced an `--update` concept where existing entries
-  with matching filenames are replaced rather than appended. This is related
-  but distinct from basic append behavior.
+  with matching filenames are replaced rather than appended. Bear now folds
+  this into append itself: new entries come first and the default duplicate
+  match is `directory` and `file`, so a rebuilt file's newest entry replaces
+  the old one without a separate flag. GitHub discussion #712 requested this
+  for partial builds where changed flags previously left stale duplicates.
+
+## Rationale
+
+- [Latest compilation wins for a rebuilt file](../rationale/duplicate-latest-flags-win.md)

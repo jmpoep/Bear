@@ -230,6 +230,7 @@ mod test {
         assert_eq!(expected, result);
     }
 
+    // Requirements: output-duplicate-detection
     #[test]
     fn test_incomplete_wrapper_config() {
         let content: &[u8] = br#"
@@ -251,9 +252,7 @@ mod test {
             intercept: Intercept::Wrapper,
             compilers: vec![],
             sources: SourceFilter { directories: vec![] },
-            duplicates: DuplicateFilter {
-                match_on: vec![OutputFields::Directory, OutputFields::File, OutputFields::Arguments],
-            },
+            duplicates: DuplicateFilter { match_on: vec![OutputFields::Directory, OutputFields::File] },
             format: Format {
                 paths: PathFormat { directory: PathResolver::AsIs, file: PathResolver::AsIs },
                 entries: EntryFormat { use_array_format: true, include_output_field: true },
@@ -264,6 +263,7 @@ mod test {
         assert_eq!(expected, result);
     }
 
+    // Requirements: output-duplicate-detection
     #[test]
     fn test_incomplete_preload_config() {
         let content: &[u8] = br#"
@@ -284,9 +284,7 @@ mod test {
             intercept: Intercept::Preload,
             compilers: vec![],
             sources: SourceFilter { directories: vec![] },
-            duplicates: DuplicateFilter {
-                match_on: vec![OutputFields::Directory, OutputFields::File, OutputFields::Arguments],
-            },
+            duplicates: DuplicateFilter { match_on: vec![OutputFields::Directory, OutputFields::File] },
             format: Format {
                 paths: PathFormat { directory: PathResolver::Absolute, file: PathResolver::Absolute },
                 entries: EntryFormat { use_array_format: true, include_output_field: true },
@@ -311,6 +309,14 @@ mod test {
         };
 
         assert_eq!(expected, result);
+    }
+
+    // Requirements: output-duplicate-detection
+    #[test]
+    fn test_default_duplicate_filter_matches_directory_and_file_only() {
+        let sut = DuplicateFilter::default();
+
+        assert_eq!(sut.match_on, vec![OutputFields::Directory, OutputFields::File]);
     }
 
     #[test]

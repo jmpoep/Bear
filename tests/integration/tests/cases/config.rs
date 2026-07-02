@@ -1047,13 +1047,14 @@ duplicates:
     Ok(())
 }
 
-/// In append mode, the original entry from the existing compilation database
-/// wins over a new entry that matches on the configured fields: the original
-/// arguments survive, the new ones are dropped.
+/// In append mode, a new entry that matches an existing one on the configured
+/// fields wins over the entry from the existing compilation database: the new
+/// arguments survive, the stale ones are dropped. New entries are emitted
+/// before existing ones, so first-occurrence filtering keeps the new entry.
 // Requirements: output-duplicate-detection, output-append
 #[test]
 #[cfg(target_family = "unix")]
-fn duplicate_append_mode_preserves_original_entry() -> Result<()> {
+fn duplicate_append_mode_newest_entry_wins() -> Result<()> {
     use serde_json::json;
 
     let env = TestEnvironment::new("dup_append_priority")?;
@@ -1091,8 +1092,8 @@ duplicates:
         "compile_commands.json",
     ])?;
 
-    // Second run tries to add a new entry for the same file with -O3. The
-    // append-mode guarantee: the original -O2 entry wins.
+    // Second run adds a new entry for the same file with -O3. The append-mode
+    // guarantee: the new -O3 entry wins and replaces the stale -O2 entry.
     let second_event = json!({
         "executable": COMPILER_C_PATH,
         "arguments": [COMPILER_C_PATH, "-c", "-O3", "test.c"],
@@ -1125,8 +1126,77 @@ duplicates:
         .filter_map(|v| v.as_str())
         .map(String::from)
         .collect();
-    assert!(args.iter().any(|a| a == "-O2"), "original -O2 entry must survive, got {:?}", args);
-    assert!(!args.iter().any(|a| a == "-O3"), "new -O3 entry must be dropped, got {:?}", args);
+    assert!(args.iter().any(|a| a == "-O3"), "new -O3 entry must win, got {:?}", args);
+    assert!(!args.iter().any(|a| a == "-O2"), "stale -O2 entry must be dropped, got {:?}", args);
+
+    Ok(())
+}
+
+/// The scenario from GitHub discussion #712, exercised through the DEFAULT
+/// duplicate config (no `duplicates:` section): an `--append` run that
+/// recompiles a file with different flags must replace the stale entry rather
+/// than accumulate a second one. This depends on the default `match_on` being
+/// `[directory, file]` (arguments excluded) together with append emitting new
+/// entries first, so it would fail under the old `[directory, file, arguments]`
+/// default (which kept both entries).
+// Requirements: output-duplicate-detection, output-append
+#[test]
+#[cfg(target_family = "unix")]
+fn default_config_append_replaces_stale_entry_on_flag_change() -> Result<()> {
+    use serde_json::json;
+
+    // arrange: an existing database built with -O2, and a new build with -O3.
+    let env = TestEnvironment::new("dup_append_default")?;
+    let temp_dir = env.test_dir().to_str().unwrap().to_string();
+
+    let first_event = json!({
+        "executable": COMPILER_C_PATH,
+        "arguments": [COMPILER_C_PATH, "-c", "-O2", "test.c"],
+        "working_dir": temp_dir,
+        "environment": {}
+    });
+    env.create_source_files(&[
+        ("events1.json", &first_event.to_string()),
+        ("test.c", "int main() { return 0; }"),
+    ])?;
+
+    // No --config: this run uses the default duplicate config.
+    env.run_bear_success(&["semantic", "--input", "events1.json", "--output", "compile_commands.json"])?;
+
+    let second_event = json!({
+        "executable": COMPILER_C_PATH,
+        "arguments": [COMPILER_C_PATH, "-c", "-O3", "test.c"],
+        "working_dir": temp_dir,
+        "environment": {}
+    });
+    std::fs::write(env.test_dir().join("events2.json"), second_event.to_string())?;
+
+    // act: append the -O3 build to the existing -O2 database, default config.
+    env.run_bear_success(&[
+        "semantic",
+        "--append",
+        "--input",
+        "events2.json",
+        "--output",
+        "compile_commands.json",
+    ])?;
+
+    // assert: one entry, recording the newest (-O3) flags.
+    let sut = env.load_compilation_database("compile_commands.json")?;
+    sut.assert_count(1)?;
+
+    let args: Vec<String> = sut
+        .entries()
+        .first()
+        .and_then(|e| e.get("arguments"))
+        .and_then(|v| v.as_array())
+        .unwrap()
+        .iter()
+        .filter_map(|v| v.as_str())
+        .map(String::from)
+        .collect();
+    assert!(args.iter().any(|a| a == "-O3"), "new -O3 entry must win, got {:?}", args);
+    assert!(!args.iter().any(|a| a == "-O2"), "stale -O2 entry must be dropped, got {:?}", args);
 
     Ok(())
 }

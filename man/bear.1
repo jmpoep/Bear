@@ -51,6 +51,9 @@ The output is a JSON compilation database.
 \f[B]\-a, \-\-append\f[R]
 Append results to an existing output file instead of overwriting it.
 This allows incremental updates to the compilation database.
+New entries are placed before the existing ones, so when a source file
+is rebuilt its newest invocation survives duplicate filtering and
+replaces the stale entry (see the \f[CR]duplicates\f[R] section).
 .TP
 \f[B]\-h, \-\-help\f[R]
 Print help information.
@@ -211,9 +214,20 @@ Empty directories list means include everything.
 Filtering functionality based on duplicate detection.
 Here you can define which fields of the output file should be used in
 the duplicate detection.
+Two entries are duplicates when all of the configured fields match; the
+first occurrence is kept and later duplicates are dropped.
 .IP \(bu 2
 \f[B]match_on\f[R]: List of fields to use for duplicate detection (file,
-arguments, directory, command, output)
+arguments, directory, command, output).
+The default is \f[CR]directory\f[R] and \f[CR]file\f[R], so by default
+one entry is kept per source file per directory, regardless of the
+compiler arguments.
+A consequence is that when a single build compiles the same file from
+the same directory with different flags, only one entry is kept (the
+first seen); add \f[CR]arguments\f[R] to \f[CR]match_on\f[R] to keep a
+separate entry per configuration.
+Combined with \f[CR]\-\-append\f[R] (new entries first), the default
+means a rebuilt file\(cqs newest invocation replaces its stale entry.
 .SS format
 Output formatting configuration:
 .IP \(bu 2

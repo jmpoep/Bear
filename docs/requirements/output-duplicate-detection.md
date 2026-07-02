@@ -5,25 +5,34 @@ status: implemented
 
 ## Intent
 
-Build systems may invoke the same compiler command multiple times for the
-same source file (e.g. parallel make retries, ccache wrappers, or repeated
-builds with `--append`). The compilation database specification
-(<https://clang.llvm.org/docs/JSONCompilationDatabase.html>) allows multiple
-entries for the same file but notes this is for "different configurations."
-Bear filters out true duplicates to keep the output clean and reduce
-downstream tool confusion.
+Build systems may invoke the compiler for the same source file more than
+once - parallel make retries, ccache wrappers, or repeated builds with
+`--append` after a file's flags change. The compilation database
+specification (<https://clang.llvm.org/docs/JSONCompilationDatabase.html>)
+allows multiple entries for the same file, noting this is for "different
+configurations", but stale duplicates confuse downstream tools and let old
+flags linger after a rebuild. By default Bear keeps a single entry per
+source file (identified by its directory and path), so recompiling a file
+with new flags updates its entry instead of accumulating a stale one. Users
+who genuinely need several configurations recorded for one file can widen
+the set of fields that distinguish entries.
 
 ## Acceptance criteria
 
 - Duplicate entries are detected and only the first occurrence is kept
-- The first-occurrence guarantee means that in append mode (`output-append`),
-  the original entry from the existing database takes priority over a new
-  entry with identical fields
-- Accepted entries appear in the output in the same order they were received
-- Duplicate detection is based on configurable fields (default: `directory`,
-  `file`, `arguments`)
+- Duplicate detection is based on configurable fields (default: `directory`
+  and `file`)
+- By default two entries for the same source file in the same directory are
+  duplicates regardless of their compiler arguments, so only one survives;
+  distinguishing entries by their flags requires adding the arguments field
+  to the configured set
 - Two entries are considered duplicates when all configured fields match
 - Entries that differ in any configured field are preserved as distinct
+- The first-occurrence guarantee combines with append ordering
+  (`output-append`): a newly generated entry is emitted before the matching
+  entry from the existing database, so the new entry wins and its flags
+  replace the old ones
+- Accepted entries appear in the output in the same order they were received
 - The set of fields used for matching is configurable via the `duplicates`
   section in the configuration file
 - Configuration validation rejects:
@@ -51,7 +60,14 @@ Given a build that compiles file.c twice with identical flags:
 Given a build that compiles file.c with `-O2` and then with `-O3`:
 
 > When Bear generates the compilation database with default duplicate config,
-> then both entries appear (different arguments means not a duplicate).
+> then only one entry for file.c appears
+> (default matching is `directory` and `file`, so arguments are ignored).
+
+Given duplicate detection configured with `match_on: [directory, file, arguments]`
+and a build that compiles file.c with `-O2` and then with `-O3`:
+
+> When Bear generates the compilation database,
+> then both entries appear (arguments are part of the match, so they differ).
 
 Given files `src/util.c` and `lib/util.c` (same basename, different directories):
 
@@ -79,23 +95,32 @@ Given duplicate detection configured with `match_on: []`:
 > with an error explaining the empty field list.
 
 Given an `--append` run where file.c exists in the old database, and the
-new build also compiles file.c with the same flags:
+new build compiles file.c with different flags:
 
 > When Bear generates the output,
-> then only one entry for file.c appears
-> (the original from the old database, because existing entries come first).
+> then only one entry for file.c appears, recording the new flags
+> (the new entry wins, because new entries come first and default matching
+> ignores arguments).
 
 ## Notes
 
 - GitHub issue #667 reported that files with identical basenames in separate
   directories were incorrectly dropped. This was caused by matching on
-  filename alone without considering the directory. The default config
-  includes both `directory` and `file` to prevent this.
+  filename alone without considering the directory. The default config still
+  includes `directory` alongside `file`, so same-basename files in different
+  directories remain distinct.
 - GitHub issue #638 reported duplicate entries from clang's internal `-cc1`
   frontend invocations. These are filtered by the semantic analyzer before
   reaching the duplicate filter, but the duplicate filter provides a safety
   net.
-- GitHub PR #497 introduced an `--update` concept where duplicates are
-  replaced rather than dropped. This is not currently implemented in the
-  Rust version but the configurable field matching provides a foundation
-  for it.
+- GitHub PR #497 introduced an `--update` concept where existing entries are
+  replaced when a file is recompiled with new flags. Bear now delivers this
+  as the default rather than a separate flag: dropping arguments from the
+  default match set collapses a file to one entry, and append ordering
+  (`output-append`) makes the newest entry win. GitHub discussion #712
+  requested this for partial builds where changed flags previously left
+  stale duplicates.
+
+## Rationale
+
+- [Latest compilation wins for a rebuilt file](../rationale/duplicate-latest-flags-win.md)
