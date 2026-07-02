@@ -32,7 +32,7 @@ signal-hook = { version = "0.4", default-features = false }
 regex-lite = "0.1"
 libc = "0.2"
 errno = "0.3"
-ctor = "0.6"
+ctor = "1.0"
 which = "8.0"
 cc = "1.2"
 assert_cmd = "2.2"

@@ -37,13 +37,13 @@ use libc::{RTLD_NEXT, c_char, c_int, pid_t, posix_spawn_file_actions_t, posix_sp
 
 use crate::session::{DoctoredEnvironment, SESSION_CTX, in_session, init_session_from_envp};
 
-#[ctor]
+#[ctor(unsafe)]
 static REAL_EXECVE: AtomicPtr<libc::c_void> = {
     let ptr = unsafe { libc::dlsym(RTLD_NEXT, c"execve".as_ptr() as *const _) };
     AtomicPtr::new(ptr)
 };
 
-#[ctor]
+#[ctor(unsafe)]
 static REAL_EXECVPE: AtomicPtr<libc::c_void> = {
     // On musl, execvpe is only a weak alias of the namespace-reserved
     // __execvpe. On some arches (e.g. s390x) dlsym may not resolve the weak
@@ -56,49 +56,49 @@ static REAL_EXECVPE: AtomicPtr<libc::c_void> = {
     AtomicPtr::new(ptr)
 };
 
-#[ctor]
+#[ctor(unsafe)]
 static REAL_EXECVP: AtomicPtr<libc::c_void> = {
     let ptr = unsafe { libc::dlsym(RTLD_NEXT, c"execvp".as_ptr() as *const _) };
     AtomicPtr::new(ptr)
 };
 
-#[ctor]
+#[ctor(unsafe)]
 static REAL_EXECVP_OPENBSD: AtomicPtr<libc::c_void> = {
     let ptr = unsafe { libc::dlsym(RTLD_NEXT, c"execvP".as_ptr() as *const _) };
     AtomicPtr::new(ptr)
 };
 
-#[ctor]
+#[ctor(unsafe)]
 static REAL_EXECT: AtomicPtr<libc::c_void> = {
     let ptr = unsafe { libc::dlsym(RTLD_NEXT, c"exect".as_ptr() as *const _) };
     AtomicPtr::new(ptr)
 };
 
-#[ctor]
+#[ctor(unsafe)]
 static REAL_POSIX_SPAWN: AtomicPtr<libc::c_void> = {
     let ptr = unsafe { libc::dlsym(RTLD_NEXT, c"posix_spawn".as_ptr() as *const _) };
     AtomicPtr::new(ptr)
 };
 
-#[ctor]
+#[ctor(unsafe)]
 static REAL_POSIX_SPAWNP: AtomicPtr<libc::c_void> = {
     let ptr = unsafe { libc::dlsym(RTLD_NEXT, c"posix_spawnp".as_ptr() as *const _) };
     AtomicPtr::new(ptr)
 };
 
-#[ctor]
+#[ctor(unsafe)]
 static REAL_POPEN: AtomicPtr<libc::c_void> = {
     let ptr = unsafe { libc::dlsym(RTLD_NEXT, c"popen".as_ptr() as *const _) };
     AtomicPtr::new(ptr)
 };
 
-#[ctor]
+#[ctor(unsafe)]
 static REAL_SYSTEM: AtomicPtr<libc::c_void> = {
     let ptr = unsafe { libc::dlsym(RTLD_NEXT, c"system".as_ptr() as *const _) };
     AtomicPtr::new(ptr)
 };
 
-#[ctor]
+#[ctor(unsafe)]
 static REAL_PCLOSE: AtomicPtr<libc::c_void> = {
     let ptr = unsafe { libc::dlsym(RTLD_NEXT, c"pclose".as_ptr() as *const _) };
     AtomicPtr::new(ptr)
